@@ -1,0 +1,12 @@
+      integer mxal 
+      parameter (mxal=5000)
+c      
+      character*16 emname,icname,bcname,vgname
+      common /specinfo/emname(mxspg),icname(mxspg),
+     &                 bcname(mxspg),vgname(mxspg)      
+c
+      integer emnum,bcnum,vgnum,icnum
+      common /ispecinfo/ emnum,bcnum,vgnum,icnum   
+c
+      real   emal,bcal,vgal,ical
+      common /rspecinfo/ emal(mxal),bcal(mxal),vgal(mxal),ical(mxal)

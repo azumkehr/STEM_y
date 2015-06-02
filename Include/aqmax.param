@@ -1,0 +1,4 @@
+      integer mxgr,mxspg,mxrxn
+      parameter (mxgr=200)
+      parameter (mxspg=250)
+      parameter (mxrxn=500)

@@ -1,0 +1,4 @@
+3/7/06:   Optimization m in l-bfgs-b changed from 5 to 3. 
+3/17/06:  Optimization m in l-bfgs-b changed back to 5.
+
+

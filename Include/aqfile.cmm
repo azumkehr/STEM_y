@@ -1,0 +1,10 @@
+      character*80 specif,gmechf,METEO3D,METEO2D,blank
+      character*80 initf,emif,EMISSION,depvel,bdf,bdfv,domain,lmechf
+      character*80 spec_emf,spec_icf,spec_bcf,spec_vgf
+      character*80 init_lqf,init_ptf,emarea_pt
+      namelist /aqinpf/specif,gmechf,initf,emif,emission,depvel,bdf,
+     1 bdfv, domain,lmechf,METEO3D,METEO2D,init_lqf,init_ptf,
+     2    emarea_pt,spec_emf,spec_icf,spec_bcf,spec_vgf
+c     common /aqfile/specif,gmechf,initf,emif,EMAREA,DEPVEL,bdf,
+c    1    domain,lmechf,METEO3D,METEO2D,init_lqf,init_ptf,
+c    2    emarea_pt,spec_emf,spec_icf,spec_bcf,spec_vgf

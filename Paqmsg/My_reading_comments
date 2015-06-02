@@ -1,0 +1,39 @@
+paqmsg.f:      module XYParallelDataMap
+paqmsg.f:      module XYCommDataTypes
+paqmsg.f:      module HVParallelDataMap
+paqmsg.f:      module HVCommDataTypes
+paqmsg.f:      module XYCommunicationLibrary
+paqmsg.f:      module HVCommunicationLibrary
+paqmsg.f:      module XYParallelCommunication
+paqmsg.f:      module HVParallelCommunication
+=============================================
+paqmsg.f includes the contents of 
+     1. paqmsg_communication.f
+     2. paqmsg_library.f
+     3. paqmsg_util.f
+
+   It is not used. The three seperate files 
+ are used instead.  See the following.
+=============================================
+	paqmsg_communication.f:      module XYParallelCommunication
+	paqmsg_communication.f:      module HVParallelCommunication
+
+	paqmsg_library.f:      module XYCommunicationLibrary
+	paqmsg_library.f:      module HVCommunicationLibrary
+
+	paqmsg_util.f:      module XYParallelDataMap
+	paqmsg_util.f:      module XYCommDataTypes
+	paqmsg_util.f:      module HVParallelDataMap
+	paqmsg_util.f:      module HVCommDataTypes
+
+=============================================
+paqmsg_stem.f:      module XYStemCommunication
+paqmsg_stem.f:      module HVStemCommunication
+  
+    It is used along with the previous three 
+ seperate files.
+==============================================
+   The other two setup files should be good.
+===============================================
+   Memory allocation is located somewhere else.
+===============================================

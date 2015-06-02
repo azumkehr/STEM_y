@@ -1,0 +1,1302 @@
+!------------------------------------------------------------------------------
+! Contains the solution for advection-diffusion eqns by finite differences
+! ***** CONCENTRATIONS ARE REALTIVE, E.G. MOLEFRACTION OR PPB *****
+!------------------------------------------------------------------------------
+
+
+!*************************************************************************
+      subroutine tranx_mf(ix,iy,iz,bounds,s1,u,kh,sx,dt,dx)
+!**************************************************************************
+!---+----1----+----2----+----3----+----4----+----5----+----6----+----7--
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+      integer, intent(in) :: ix, iy, iz, bounds(8)
+      real :: s1(ix,iy,iz,*), u(ix,iy,*), kh(ix,iy,*)
+      real :: sx(iy,iz,2,*), dx(*), dt
+      real*8 :: wind(1:ix), dif(1:ix), air(1:ix), conc(1:ix,mxspg)
+      real*8 :: sb(1:2,mxspg), Deltax, Deltat, DTMAX
+      integer :: num, i, j, k, l, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+
+      num = nend-nstart+1         ! number of transported species
+            
+      Deltax = dx(1)       ! grid size: this works for uniform grids only
+      ! Max time step (seconds)
+      DTMAX = 900.d0       
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+
+      do j=ystart,yend
+      do k=zstart,zend
+      
+      
+      Conc(1:ix,1:num) = s1(1:ix,j,k,nstart:nend)
+      Wind(1:ix) = u(1:ix,j,k)
+      Dif(1:ix) = kh(1:ix,j,k)
+      Air(1:ix) = s1(1:ix,j,k,iair)
+      Sb(1:2,1:num) = sx(j,k,1:2,nstart:nend)
+! Tracer
+      
+      call ADVDIFF_FDH_MF(Deltat, Nsteps, ix, num, Deltax, &
+                         Wind, Dif, Air, Conc, Sb)
+			 			 
+						 
+      s1(1:ix,j,k,nstart:nend) = max(Conc(1:ix,1:num),0.d0)
+
+ 
+      end do ! iz
+      end do ! iy      
+      
+      return
+      end
+
+!*********************************************************************
+      subroutine trany_mf(ix,iy,iz,bounds,s1,v,kh,sy,dt,dy)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+      integer :: ix, iy, iz
+      real ::  s1(ix,iy,iz,*), v(ix,iy,*), kh(ix,iy,*)
+      real ::  sy(ix,iz,2,*), dy(*), dt
+      integer :: bounds(8)
+      real*8 :: Wind(1:iy), Dif(1:iy), Air(1:iy), Conc(1:iy,mxspg)
+      real*8 :: Sb(1:2,mxspg), Deltay, Deltat, DTMAX
+      integer :: num, i, j, k, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+!      
+      num=nend-nstart+1    ! number of transported species
+      Deltay = dy(1)       ! grid size: this works for uniform grids only
+      ! Max time step (seconds) 
+      DTMAX = 900.d0
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+
+      do i=xstart,xend
+      do k=zstart,zend
+      
+      Conc(1:iy,1:num) = s1(i,1:iy,k,nstart:nend)
+      Wind(1:iy) = v(i,1:iy,k)
+      Dif(1:iy) = kh(i,1:iy,k)
+      Air(1:iy) = s1(i,1:iy,k,iair)
+      Sb(1:2,1:num) = sy(i,k,1:2,nstart:nend)
+      
+      call ADVDIFF_FDH_MF(Deltat, Nsteps, iy, num, Deltay, &
+                         Wind, Dif, Air, Conc, Sb)
+			 
+			 			 
+      s1(i,1:iy,k,nstart:nend) = max(Conc(1:iy,1:num),0.d0)
+      
+      end do ! iz
+      end do ! ix
+
+      return
+      end
+      
+      
+!*********************************************************************
+      subroutine tranz_mf(ix,iy,iz,bounds,s1,w,kv,q,em,vg,sz,dt,dz)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+!      Arguments:      
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: s1(ix,iy,iz,*), w(ix,iy,iz), kv(ix,iy,iz)
+      real :: q(ix,iy,*), em(ix,iy,iz,*), vg(ix,iy,*), sz(ix,iy,*)
+      real :: dt, dz(ix,iy,*)
+! Local variables:      
+      real*8 :: Deltat, Z(iz), Wind(iz), Dif(iz)
+      real*8 :: Conc(iz,mxspg), Sb(2,mxspg), Air(iz) 
+      real*8 :: SurfaceEm(mxspg), VolumeEm(iz,mxspg), DepVel(mxspg)     
+      real*8 :: Conc1(iz,mxspg), DTMAX
+      integer :: i, j, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+      num = nend-nstart+1 ! number of species
+      ! Max time step (seconds)
+      DTMAX = 900.d0
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      do i=xstart,xend
+      do j=ystart,yend
+      
+      ! The vertical grid
+      Z(1) = 0.d0
+      do k = 1, iz-1
+        Z(k+1) = Z(k) + dz(i,j,k)
+      end do	
+      
+      
+      Conc(1:iz,1:num) = s1(i,j,1:iz,nstart:nend)
+      Sb(1,1:num)      = s1(i,j,1,nstart:nend)
+      Sb(2,1:num)      = sz(i,j,nstart:nend)
+      SurfaceEm(1:num) = q(i,j,nstart:nend)
+      VolumeEm(1:iz,1:num) = em(i,j,1:iz,nstart:nend)
+      DepVel(1:num)        = vg(i,j,nstart:nend)
+      
+      Wind(1:iz) = w(i,j,1:iz)
+      Dif(1:iz)  = kv(i,j,1:iz)
+      Air(1:iz)  = s1(i,j,1:iz,iair)
+             
+      call ADVDIFF_FDZ_MF(Deltat, Nsteps, iz, num, Z, Wind, Dif, &
+                    Air, Conc, Sb, SurfaceEm, VolumeEm, DepVel)   
+			 			          
+			 
+      s1(i,j,1:iz,nstart:nend) = max(Conc(1:iz,1:num),0.d0)
+		       
+      end do ! j
+      end do ! i
+!
+      return
+      end
+  
+
+      
+!*********************************************************************
+! Z-Transport in the sigma vertical coordinate
+      subroutine tranz_sigma_mf(ix,iy,iz,bounds,s1,w,kv,&
+                             q,em,vg,sz,dt,sigma)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+!      Arguments:      
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: s1(ix,iy,iz,*), w(ix,iy,iz), kv(ix,iy,iz)
+      real :: q(ix,iy,*), em(ix,iy,iz,*), vg(ix,iy,*), sz(ix,iy,*)
+      real :: dt, sigma(iz)
+! Local variables:      
+      real*8 :: Deltat, Z(iz), Wind(iz), Dif(iz)
+      real*8 :: Conc(iz,mxspg), Sb(2,mxspg), Air(iz) 
+      real*8 :: SurfaceEm(mxspg), VolumeEm(iz,mxspg), DepVel(mxspg)     
+      real*8 :: Conc1(iz,mxspg)
+      integer :: i, j, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+      num = nend-nstart+1 ! number of species
+      ! Max time step is 300 sec
+      Nsteps = int(dt/300.0)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      do i=xstart,xend
+      do j=ystart,yend
+      
+      ! The vertical grid
+      Z(1:iz) = sigma(1:iz)
+      
+      Wind(1:iz)  = w(i,j,1:iz)
+      Dif(1:iz)   = kv(i,j,1:iz)
+      Conc(1:iz,1:num) = s1(i,j,1:iz,nstart:nend)
+      Air(1:iz) = s1(i,j,1:iz,iair)
+      Sb(1,1:num) = s1(i,j,1,nstart:nend)
+      Sb(2,1:num) = sz(i,j,nstart:nend)
+      SurfaceEm(1:num) = q(i,j,nstart:nend)
+      VolumeEm(1:iz,1:num) = em(i,j,1:iz,nstart:nend)
+      DepVel(1:num)        = vg(i,j,nstart:nend)
+             
+      call ADVDIFF_FDZ_MF(Deltat, Nsteps, iz, num, Z, Wind, Dif, &
+                    Air, Conc, Sb, SurfaceEm, VolumeEm, DepVel)   
+
+      s1(i,j,1:iz,nstart:nend) = max(Conc(1:iz,1:num),0.d0)
+		       
+      end do ! j
+      end do ! i
+!
+      return
+      end
+
+
+!*************************************************************************
+      subroutine tranx_adjoint_mf(ix,iy,iz,bounds, &
+                           Lam,Airconc,u,kh,sx,dt,dx)
+!**************************************************************************
+!---+----1----+----2----+----3----+----4----+----5----+----6----+----7--
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+      integer, intent(in) :: ix, iy, iz, bounds(8)
+      real :: Lam(ix,iy,iz,*), u(ix,iy,*), kh(ix,iy,*)
+      real :: sx(iy,iz,2,*), dx(*), dt
+      real :: Airconc(ix,iy,iz)
+      real*8 :: wind(1:ix), dif(1:ix), air(1:ix), conc(1:ix,mxspg)
+      real*8 :: sb(1:2,mxspg), Deltax, Deltat, DTMAX
+      integer :: num, i, j, k, l, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+
+      num = nend-nstart+1         ! number of transported species
+            
+      Deltax = dx(1)       ! grid size: this works for uniform grids only
+      ! Max time step (seconds)
+      DTMAX = 900.d0       
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+
+      do j=ystart,yend
+      do k=zstart,zend
+      
+      
+      Conc(1:ix,1:num) = Lam(1:ix,j,k,nstart:nend)
+      Wind(1:ix) = u(1:ix,j,k)
+      Dif(1:ix) = kh(1:ix,j,k)
+      Air(1:ix) = Airconc(1:ix,j,k)
+      Sb(1:2,1:num) = sx(j,k,1:2,nstart:nend)
+      
+      call adj_advdiff_fdh_mf(Deltat, Nsteps, ix, num, Deltax, &
+                         Wind, Dif, Air, Conc)
+			 			 
+      Lam(1:ix,j,k,nstart:nend) = Conc(1:ix,1:num)						 
+      !Lam(1:ix,j,k,nstart:nend) = max(Conc(1:ix,1:num),0.d0)
+      !****** Adjoints/co-states can be negative!
+      !******   Corrected by Tianfeng Chai, 6/26/03
+ 
+      end do ! iz
+      end do ! iy      
+      
+      return
+      end
+
+!*********************************************************************
+      subroutine trany_adjoint_mf(ix,iy,iz,bounds,Lam,Airconc,v, &
+                              kh,sy,dt,dy)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+      integer :: ix, iy, iz
+      real ::  Lam(ix,iy,iz,*), v(ix,iy,*), kh(ix,iy,*)
+      real ::  sy(ix,iz,2,*), dy(*), dt
+      real ::  Airconc(ix,iy,iz)
+      integer :: bounds(8)
+      real*8 :: Wind(1:iy), Dif(1:iy), Air(1:iy), Conc(1:iy,mxspg)
+      real*8 :: Sb(1:2,mxspg), Deltay, Deltat, DTMAX
+      integer :: num, i, j, k, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+!      
+      num=nend-nstart+1    ! number of transported species
+      Deltay = dy(1)       ! grid size: this works for uniform grids only
+      ! Max time step (seconds) 
+      DTMAX = 900.d0
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+
+      do i=xstart,xend
+      do k=zstart,zend
+      
+      Conc(1:iy,1:num) = Lam(i,1:iy,k,nstart:nend)
+      Wind(1:iy) = v(i,1:iy,k)
+      Dif(1:iy) = kh(i,1:iy,k)
+      Air(1:iy) = Airconc(i,1:iy,k)
+      Sb(1:2,1:num) = sy(i,k,1:2,nstart:nend)
+      
+      call adj_advdiff_fdh_mf(Deltat, Nsteps, iy, num, Deltay, &
+                         Wind, Dif, Air, Conc)
+			 
+      Lam(i,1:iy,k,nstart:nend) = Conc(1:iy,1:num)	 			 
+      !Lam(i,1:iy,k,nstart:nend) = max(Conc(1:iy,1:num),0.d0)
+      !****** Adjoints/co-states can be negative!
+      !******   Corrected by Tianfeng Chai, 6/26/03
+     
+      end do ! iz
+      end do ! ix
+
+      return
+      end
+      
+      
+!*********************************************************************
+      subroutine tranz_adjoint_mf(ix,iy,iz,bounds,Lam, &
+                             Airconc,w,kv,q,em,vg,sz,dt,dz)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+!      Arguments:      
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: Lam(ix,iy,iz,*), w(ix,iy,iz), kv(ix,iy,iz)
+      real :: q(ix,iy,*), em(ix,iy,iz,*), vg(ix,iy,*), sz(ix,iy,*)
+      real :: dt, dz(ix,iy,*), Airconc(ix,iy,iz)
+! Local variables:      
+      real*8 :: Deltat, Z(iz), Wind(iz), Dif(iz)
+      real*8 :: Conc(iz,mxspg), Sb(2,mxspg), Air(iz) 
+      real*8 :: SurfaceEm(mxspg), VolumeEm(iz,mxspg), DepVel(mxspg)     
+      real*8 :: Conc1(iz,mxspg), DTMAX
+      integer :: i, j, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+      num = nend-nstart+1 ! number of species
+      ! Max time step (seconds)
+      DTMAX = 900.d0
+      Nsteps = int(dt/DTMAX)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      do i=xstart,xend
+      do j=ystart,yend
+      
+      ! The vertical grid
+      Z(1) = 0.d0
+      do k = 1, iz-1
+        Z(k+1) = Z(k) + dz(i,j,k)
+      end do	
+      
+      
+      Wind(1:iz)  = w(i,j,1:iz)
+      Dif(1:iz)   = kv(i,j,1:iz)
+      Conc(1:iz,1:num) = Lam(i,j,1:iz,nstart:nend)
+      Air(1:iz) = Airconc(i,j,1:iz)
+
+      Sb(1,1:num) = 0.!Lam(i,j,1,nstart:nend)
+      Sb(2,1:num) = 0.!sz(i,j,nstart:nend)
+      SurfaceEm(1:num) = 0.!q(i,j,nstart:nend)
+      VolumeEm(1:iz,1:num) = 0.!em(i,j,1:iz,nstart:nend)
+      DepVel(1:num)        = vg(i,j,nstart:nend)
+             
+      call adj_advdiff_fdz_mf(Deltat, Nsteps, iz, num, Z, Wind, Dif, &
+                    Air, Conc, Sb, SurfaceEm, VolumeEm, DepVel)   
+			
+      Lam(i,j,1:iz,nstart:nend) =Conc(1:iz,1:num)  
+      !Lam(i,j,1:iz,nstart:nend) = max(Conc(1:iz,1:num),0.d0)
+      !****** Adjoints/co-states can be negative!
+      !******   Corrected by Tianfeng Chai, 6/26/03
+
+		       
+      end do ! j
+      end do ! i
+!
+      return
+      end
+  
+      
+
+
+      
+!*********************************************************************
+! Z-Transport in the sigma vertical coordinate
+      subroutine tranz_sigma_adjoint_mf(ix,iy,iz,bounds,Lam, &
+                             Airconc,w,kv,q,em,vg,sz,dt,sigma)
+!*********************************************************************
+      include 'aqmax.param'
+      include 'aqindx.cmm'
+!      Arguments:      
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: Lam(ix,iy,iz,*), w(ix,iy,iz), kv(ix,iy,iz)
+      real :: q(ix,iy,*), em(ix,iy,iz,*), vg(ix,iy,*), sz(ix,iy,*)
+      real :: dt, sigma(iz), Airconc(iz)
+! Local variables:      
+      real*8 :: Deltat, Z(iz), Wind(iz), Dif(iz)
+      real*8 :: Conc(iz,mxspg), Sb(2,mxspg), Air(iz) 
+      real*8 :: SurfaceEm(mxspg), VolumeEm(iz,mxspg), DepVel(mxspg)     
+      real*8 :: Conc1(iz,mxspg)
+      integer :: i, j, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      zstart = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+      num = nend-nstart+1 ! number of species
+      ! Max time step is 300 sec
+      Nsteps = int(dt/300.0)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      do i=xstart,xend
+      do j=ystart,yend
+      
+      ! The vertical grid
+      Z(1:iz) = sigma(1:iz)
+      
+      Wind(1:iz)  = w(i,j,1:iz)
+      Dif(1:iz)   = kv(i,j,1:iz)
+      Air(1:iz) = Airconc(1:iz)
+      Conc(1:iz,1:num) = Lam(i,j,1:iz,nstart:nend)
+      Sb(1,1:num) = Lam(i,j,1,nstart:nend)
+      Sb(2,1:num) = sz(i,j,nstart:nend)
+      SurfaceEm(1:num) = q(i,j,nstart:nend)
+      VolumeEm(1:iz,1:num) = em(i,j,1:iz,nstart:nend)
+      DepVel(1:num)        = vg(i,j,nstart:nend)
+             
+      call adj_advdiff_fdz_mf(Deltat, Nsteps, iz, num, Z, Wind, Dif, &
+                    Air, Conc, Sb, SurfaceEm, VolumeEm, DepVel)   
+
+      Lam(i,j,1:iz,nstart:nend) = Conc(1:iz,1:num)
+      !Lam(i,j,1:iz,nstart:nend) = max(Conc(1:iz,1:num),0.d0)
+      !****** Adjoints/co-states can be negative!
+      !******   Corrected by Tianfeng Chai, 6/26/03
+
+		       
+      end do ! j
+      end do ! i
+!
+      return
+      end
+
+      
+
+subroutine ADVDIFF_FDH_MF(DT, Nstep, N, Nspec, DX, U, K, Air, C, BDRY)
+! -----------------------------------------------------------------------------
+!  Performs Nstep timesteps of length DT
+!      to solve the adv_diff equation using linearly implicit midpoint
+! 
+!  N   = no. of grid points
+!  Nspec = no. of chemical species
+!  Nstep = no of time steps
+!  X(1:N) = grid point coordinates
+!  U(1:N) = wind speeds
+!  K(1:N) = diffusion coefficients
+!  SurfaceEm  = Surface Emission intensity
+!  VolumeEm   = Elevated Emission intensity
+!  Vd    = deposition velocity
+!  C     = concentration of each species
+! -----------------------------------------------------------------------------
+
+  implicit none
+  integer, intent(in) :: N, Nstep, Nspec
+  double precision, intent(in)  :: DT, DX, U(N), K(N), &
+			  Bdry(2,Nspec), Air(N)
+  double precision, intent(inout) :: C(N,Nspec)
+
+!  Local Variables
+  integer, parameter :: kl=2, ku=2
+  integer, parameter :: ldjac=kl+ku+1, lda = 2*kl+ku+1
+  double precision, parameter :: alpha = 1.d0, beta = 1.d0
+  double precision :: Jac(ldjac,N),  A(lda,N)
+  double precision :: C1(N), B(N), D(2), S1(N) 
+  integer :: istep, ispec, info, ipiv(N)
+
+!  The Jacobian
+  call ADVDIFF_JAC_FDH_MF(N,DX,U,K,Air,Jac)  
+!  A = I - DT*gam*Jac
+  A(kl+1:lda,1:N) = -DT/2.d0*Jac(1:ldjac,1:N)
+  A(kl+ku+1,1:N)  = 1.d0 + A(kl+ku+1,1:N)  ! add 1 to diagonal terms
+  call DGBTRF( N, N, kl, ku, A, lda, IPIV, INFO )
+  if (INFO.ne.0) then
+     print*,'In ADVDIFF_FDH_MF INFO = ',INFO
+     print*,'N=',N,'  kl=',kl,'  ku=',ku
+     print*,'Nspec=',Nspec
+     stop
+  end if
+            
+time:do istep = 1, Nstep
+spc:   do ispec = 1, Nspec
+          C1(1:N) = C(1:N,ispec)
+	  D(1:2)  = Bdry(1:2,ispec)
+          ! The free term
+	  call ADVDIFF_FREE_FDH_MF(N,DX,U,K,D,B)
+	  C1(1:N) = C1(1:N) + DT*B(1:N)
+	  call DGBMV('N', N, N, kl, ku, DT/2.d0, Jac, ldjac,&
+                    C(1,ispec), 1, beta, C1, 1)
+          !OR: call Banded_times_vector(N,kl,ku,Jac,C1,S1); S1 = S1 + B
+          call DGBTRS( 'N', N, kl, ku, 1, A, lda, IPIV, &
+	              C1, N, INFO )
+          C(1:N,ispec) = C1(1:N)
+       end do spc
+     end do   time
+   
+end subroutine ADVDIFF_FDH_MF
+
+
+subroutine ADJ_ADVDIFF_FDH_MF(DT, Nstep, N, Nspec, DX, U, K, Air, Lam)
+! -----------------------------------------------------------------------------
+!  The adjoint of the above function
+! 
+!  N   = no. of grid points
+!  Nspec = no. of chemical species
+!  Nstep = no of time steps
+!  X(1:N) = grid point coordinates
+!  U(1:N) = wind speeds
+!  K(1:N) = diffusion coefficients
+!  SurfaceEm  = Surface Emission intensity
+!  VolumeEm   = Elevated Emission intensity
+!  Vd      = deposition velocity
+!  Lam     = adjoint of concentration of each species
+! -----------------------------------------------------------------------------
+
+  implicit none
+  integer, intent(in) :: N, Nstep, Nspec
+  double precision, intent(in)  :: DT, DX, U(N), K(N), Air(N)
+  double precision, intent(inout) :: Lam(N,Nspec)
+
+!  Local Variables
+  integer, parameter :: kl=2, ku=2
+  integer, parameter :: ldjac=kl+ku+1, lda = 2*kl+ku+1
+  double precision, parameter :: alpha = 1.d0, beta = 1.d0
+  double precision :: Jac(ldjac,N),  A(lda,N)
+  double precision :: C1(N), B(N), D(2), S1(N) 
+  integer :: istep, ispec, info, ipiv(N)
+
+!  The Jacobian
+  call ADVDIFF_JAC_FDH_MF(N,DX,U,K,Air,Jac)  
+!  A = I - DT*gam*Jac
+  A(kl+1:lda,1:N) = -DT/2.d0*Jac(1:ldjac,1:N)
+  A(kl+ku+1,1:N)  = 1.d0 + A(kl+ku+1,1:N)  ! add 1 to diagonal terms
+  call DGBTRF( N, N, kl, ku, A, lda, IPIV, INFO )
+  if (INFO.ne.0) then
+     print*,'In ADJ_ADVDIFF_FDH_MF INFO = ',INFO
+  end if
+            
+time:do istep = 1, Nstep
+spc:   do ispec = 1, Nspec
+          !OR: call Banded_times_vector(N,kl,ku,Jac,C1,S1); S1 = S1 + B
+          call DGBTRS( 'T', N, kl, ku, 1, A, lda, IPIV, &
+	              Lam(1,ispec), N, INFO )
+	  C1(1:N) = Lam(1:N,ispec)
+          call DGBMV('T', N, N, kl, ku, DT/2.d0, Jac, ldjac,&
+                    C1, 1, beta, Lam(1,ispec), 1)
+       end do spc
+     end do   time
+   
+end subroutine ADJ_ADVDIFF_FDH_MF
+
+
+     
+
+! -----------------------------------------------------------------------------
+! Advection-diffusion derivative by finite differences
+! Advection is discretized by third order, unlimited upwind
+! Dirichlet b.c. and uniform grid
+! Horizontal transport in STEM
+! -----------------------------------------------------------------------------
+subroutine ADVDIFF_FUN_FDH_MF(N,DX,U,K,Air,Bdry,C,DC)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in) :: DX, U(N), K(N), Air(N)
+double precision, intent(in) :: Bdry(2), C(N)
+! Time derivative of the concentration
+double precision, intent(out) :: DC(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux, advflux
+! Concentration and boundaries in a single vector
+double precision :: F(0:N+1), AK(1:N), den
+
+!
+double precision, parameter :: ap = -1.0d0/6.0d0, bp = 1.0d0, &
+               cp = -1.0d0/2.0d0, dp = -1.0d0/3.0d0, &
+	       an = 1.d0/3.d0, bn = 1.d0/2.d0, &
+	       cn = -1.d0, dn = 1.d0/6.d0
+
+F(1:N) = C(1:N)
+F(0)   = Bdry(1)
+F(N+1) = Bdry(2)
+AK(1:N) = K(1:N)*Air(1:N)
+
+! The advection discretization
+den = U(1)/DX
+if ( U(1) >= 0.d0 ) then   !  inflow
+   DC(1) = ( F(0)-F(1) ) * den
+else  !  outflow
+   DC(1) = ( F(1)-F(2) ) * den
+end if 
+!
+do i=2,N-1
+  den = U(i)/DX
+  if ( U(i) >= 0.d0 ) then  !  inflow
+    DC(i) = ( ap*F(i-2)+bp*F(i-1)+cp*F(i)+dp*F(i+1) ) * den
+  else
+    DC(i) = ( an*F(i-1)+bn*F(i)+cn*F(i+1)+dn*F(i+2) ) * den
+  end if 
+end do
+!
+den = U(N)/DX
+if ( U(N) >= 0.d0 ) then  ! outflow
+  DC(N) = ( F(N-1)-F(N) ) * den
+else   ! inflow
+  DC(N) = ( F(N)-F(N+1) ) * den
+end if 
+
+! The diffusion part
+den = 2*Air(1)*DX**2
+if ( U(1) >= 0.d0 ) then   !  inflow
+  DC(1) = DC(1) + ( (AK(1)+AK(2))*(C(2)-C(1))  &
+                -   2*AK(1)*(C(1)-Bdry(1)) &
+	          )/den
+else  !  outflow
+  DC(1) = DC(1) + ( (AK(1)+AK(2))*(C(2)-C(1))  &
+	         )/den
+end if 
+!
+do i=2,N-1
+  den = 2*Air(i)*DX**2
+  DC(i) = DC(i) + ( (AK(i+1)+AK(i))*(C(i+1)-C(i))  &
+                -   (AK(i)+AK(i-1))*(C(i)-C(i-1))  &
+	           )/den
+end do
+!
+den = 2*Air(N)*DX**2
+if ( U(N) >= 0.d0 ) then  ! outflow
+  DC(N) = DC(N) + (                      &
+                -  (AK(N)+ AK(N-1))*(C(N)-C(N-1)) &
+	           )/den
+else   ! inflow
+  DC(N) = DC(N) + ( 2*AK(N)*(Bdry(2)-C(N))  &
+                -   (AK(N)+AK(N-1))*(C(N)-C(N-1)) &
+	           )/den
+end if 
+!
+end subroutine ADVDIFF_FUN_FDH_MF
+
+
+
+
+! -----------------------------------------------------------------------------
+! Jacobian of Advection-diffusion derivative by finite differences
+! Advection is discretized by third order, unlimited upwind
+! Dirichlet b.c. and uniform grid
+! The Jacobian is pentadiagonal in Blas banded representation:
+!      Jac( KU + 1 - J + I, J ) = matrix( I, J ), J = 1, N,  I = MAX( 1, J - KU ), MIN( M, J + KL )
+! -----------------------------------------------------------------------------
+
+subroutine ADVDIFF_JAC_FDH_MF(N,DX,U,K,Air,Jac)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: DX, U(N), K(N), Air(N)
+! Time derivative of the concentration
+integer, parameter :: ku=2, kl=2
+double precision, intent(out) :: Jac(ku+kl+1,N)
+
+integer :: i
+double precision  :: AK(N), den
+!
+double precision, parameter :: ap = -1.0d0/6.0d0, bp = 1.0d0, &
+                cp = -1.0d0/2.0d0, dp = -1.0d0/3.0d0, &
+	        an =  1.d0/3.d0, bn = 1.d0/2.d0, &
+	        cn = -1.d0, dn = 1.d0/6.d0
+
+! Initialize Air*K
+AK(1:N) = Air(1:N)*K(1:N)
+
+!  Initialize Jacobian to zzero
+Jac(1:ku+kl+1,1:N) = 0.d0
+
+! The advection discretization
+den = U(1)/DX
+if ( U(1) >= 0.d0 ) then
+   Jac(jrow(1,1),1) = -den
+else
+   Jac(jrow(1,1),1) =  den
+   Jac(jrow(1,2),2) = -den
+end if 
+!
+do i=2,N-1
+  den = U(i)/DX
+  if ( U(i) >= 0.d0 ) then
+    if (i>2) Jac(jrow(i,i-2),i-2) = ap*den
+    Jac(jrow(i,i-1),i-1) = bp*den
+    Jac(jrow(i,i  ),i  ) = cp*den
+    Jac(jrow(i,i+1),i+1) = dp*den
+  else
+    Jac(jrow(i,i-1),i-1) = an*den
+    Jac(jrow(i,i  ),i  ) = bn*den
+    Jac(jrow(i,i+1),i+1) = cn*den
+    if (i<N-1) Jac(jrow(i,i+2),i+2) = dn*den
+  end if 
+end do
+!
+den = U(N)/DX
+if ( U(N) >= 0.d0 ) then
+  ! DC(N) = 1.d0/DX*( F(N-1)-F(N) )
+  Jac(jrow(N,N-1),N-1) =  den
+  Jac(jrow(N,N)  ,N  ) = -den
+else
+  ! DC(N) =1.d0/DX*( F(N)-F(N+1) )
+  Jac(jrow(N,N)  ,N  ) =  den
+end if 
+
+! The diffusion part
+den = 2*Air(1)*DX**2
+if ( U(1) >= 0.d0 ) then   !  inflow
+  Jac(jrow(1,1),1) = Jac(jrow(1,1),1) &
+                     - (AK(2)+3*AK(1))/den
+  Jac(jrow(1,2),2) = Jac(jrow(1,2),2) &
+                     +  (AK(1)+AK(2))/den		  
+else  !  outflow
+  Jac(jrow(1,1),1) = Jac(jrow(1,1),1) - (AK(1)+AK(2))/den
+  Jac(jrow(1,2),2) = Jac(jrow(1,2),2) + (AK(1)+AK(2))/den		  
+end if 
+!
+do i=2,N-1
+  den = 2*Air(i)*DX**2
+  Jac(jrow(i,i-1),i-1) = Jac(jrow(i,i-1),i-1)   &
+                         + (AK(i)+AK(i-1))/den
+  Jac(jrow(i,i)  ,i)   = Jac(jrow(i,i) ,i)      &
+                         - (AK(i+1)+2*AK(i)+AK(i-1))/den
+  Jac(jrow(i,i+1),i+1) = Jac(jrow(i,i+1),i+1)   &
+                         + (AK(i+1)+AK(i))/den
+end do
+!
+den = 2*Air(N)*DX**2
+if ( U(N) >= 0.d0 ) then  ! outflow
+  Jac(jrow(N,N-1),N-1) = Jac(jrow(N,N-1),N-1) &
+                          + (AK(N)+AK(N-1))/den
+  Jac(jrow(N,N)  ,N)   = Jac(jrow(N,N),N)     &
+                          - (AK(N)+AK(N-1))/den
+else   ! inflow
+  Jac(jrow(N,N-1),N-1) = Jac(jrow(N,N-1),N-1)  &
+                          + (AK(N)+AK(N-1))/den
+  Jac(jrow(N,N)  ,N)   = Jac(jrow(N,N),N)      &
+                          - (3*AK(N)+AK(N-1))/den
+end if 
+
+contains
+  
+  integer function jrow(i,j)
+  ! gives the row of the Blas banded format for pentadiagonal Jacobian
+  integer :: i, j
+  integer, parameter :: kl=2, ku=2
+  if ( (i<=0) .or. (j<=0) ) then
+     print*,'Error in ADVDIFF_JAC_FDH_MF. i,j=',i,j
+     stop
+  end if
+  jrow = ku + 1 + i - j
+  end function jrow
+
+end subroutine ADVDIFF_JAC_FDH_MF
+
+
+
+! -----------------------------------------------------------------------------
+! Advection-diffusion derivative by finite differences
+! Advection is discretized by third order, unlimited upwind
+! Dirichlet b.c. and uniform grid
+! Free term B such that: c' = Fun_fdh = Jac_fdh*c + B
+! -----------------------------------------------------------------------------
+subroutine ADVDIFF_FREE_FDH_MF(N,DX,U,K,Bdry,B)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: DX, U(N), K(N), Bdry(2)
+! Time derivative of the concentration
+double precision, intent(out) :: B(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux, advflux
+! Concentration and boundaries in a single vector
+double precision :: F(0:N+1)
+
+!
+double precision, parameter :: ap = -1.0d0/6.0d0, bp = 1.0d0, &
+               cp = -1.0d0/2.0d0, dp = -1.0d0/3.0d0, &
+	       an = 1.d0/3.d0, bn = 1.d0/2.d0, &
+	       cn = -1.d0, dn = 1.d0/6.d0
+
+B(1:N) = 0.d0
+
+! The advection discretization
+if ( U(1) >= 0.d0 ) then   
+   B(1) = Bdry(1)*U(1)/DX + 2*K(1)*Bdry(1)/(2*DX**2)
+end if 
+!
+if ( U(2) >= 0.d0 ) then  
+   B(2) = ap*Bdry(1)*U(2)/DX
+end if 
+!
+if ( U(N-1) < 0.d0 ) then  
+   B(N-1) = dn*Bdry(2)*U(N-1)/DX
+end if 
+!
+if ( U(N) < 0.d0 ) then  
+  B(N) = -Bdry(2)*U(N)/DX + 2*K(N)*Bdry(2)/(2*DX**2)
+end if 
+!
+end subroutine ADVDIFF_FREE_FDH_MF
+
+
+
+subroutine ADVDIFF_FDZ_MF(DT, Nstep, N, Nspec, X, U, K, Air, &
+                       C, BDRY, SurfaceEm, VolumeEm, Vd)
+! -----------------------------------------------------------------------------
+!  Performs Nstep timesteps of length DT
+!      to solve the adv_diff equation in vertical direction
+!      using finite volume method and Ros2
+! 
+!  N     = no. of grid points
+!  Nspec = no. of chemical species
+!  Nstep = no of time steps
+!  X(1:N) = grid point coordinates
+!  U(1:N) = wind speeds
+!  K(1:N) = diffusion coefficients
+! Air(1:N) = Air density
+!  SurfaceEm  = Surface Emission intensity
+!  VolumeEm(1:N)   = Elevated Emission intensity
+!  Vd    = deposition velocity
+!  C(1:N)     = concentration of each species
+!
+! Note: it uses Midpoint rule
+! -----------------------------------------------------------------------------
+!
+  implicit none
+  integer, intent(in) :: N, Nstep, Nspec
+  double precision, intent(in)  :: DT, X(N), U(N), K(N), Air(N), &
+                          Vd(Nspec), SurfaceEm(Nspec),   &
+			  Bdry(2,Nspec), VolumeEm(N, Nspec)
+  double precision, intent(inout) :: C(N,Nspec)
+
+!  Local Variables
+  integer, parameter :: kl=1, ku=1
+  integer, parameter :: ldjac=kl+ku+1, lda = 2*kl+ku+1
+  double precision, parameter :: alpha = 1.d0, beta = 1.d0
+  double precision :: Jac(ldjac,N),  A(lda,N)
+  double precision :: C1(N), B(N), D(2)
+  integer :: istep, ispec, info, ipiv(N)
+
+!  The Jacobian
+  call ADVDIFF_JAC_FDZ_MF(N,X,U,K,Air,Jac)  
+!  A = I - DT*gam*Jac
+  A(kl+1:lda,1:N) = -DT/2.d0*Jac(1:ldjac,1:N)
+  A(kl+ku+1,1:N)  = 1.d0 + A(kl+ku+1,1:N)  ! add 1 to diagonal terms
+  call DGBTRF( N, N, kl, ku, A, lda, IPIV, INFO )
+  if (INFO.ne.0) then
+     print*,'In ADVDIFF_FDZ_MF INFO = ',INFO
+     print*,'N=',N,'  kl=',kl,'  ku=',ku
+     print*,'Nspec=',Nspec
+     stop
+  end if
+            
+time:do istep = 1, Nstep
+spc:   do ispec = 1, Nspec
+          C1(1:N) = C(1:N,ispec)
+	  D(1:2)  = Bdry(1:2,ispec)
+          ! The free term
+	  call ADVDIFF_FREE_FDZ_MF(N,X,U,K,D,SurfaceEm(ispec), &
+	           Vd(ispec),C1,B)
+	  ! Stage 1: S1 = A\(Jac*C1 + B)
+	  C1(1:N) = C1(1:N) + DT*B(1:N) + DT*VolumeEm(1:N,ispec)
+	  call DGBMV('N', N, N, kl, ku, DT/2.d0, Jac, ldjac,&
+                    C(1:N,ispec), 1, beta, C1, 1)
+          !OR: call Banded_times_vector(N,kl,ku,Jac,C1,S1); S1 = S1 + B
+          call DGBTRS( 'N', N, kl, ku, 1, A, lda, IPIV, &
+	              C1, N, INFO )
+          C(1:N,ispec) = C1(1:N)
+       end do spc
+     end do   time
+   
+end subroutine ADVDIFF_FDZ_MF
+
+
+
+subroutine ADJ_ADVDIFF_FDZ_MF(DT, Nstep, N, Nspec, X, U, K, Air, &
+                       Lam, BDRY, SurfaceEm, VolumeEm, Vd)
+! -----------------------------------------------------------------------------
+!  Performs Nstep timesteps of length DT
+!      to solve the adv_diff equation in vertical direction
+!      using finite volume method and Ros2
+! 
+!  N     = no. of grid points
+!  Nspec = no. of chemical species
+!  Nstep = no of time steps
+!  X(1:N) = grid point coordinates
+!  U(1:N) = wind speeds
+!  K(1:N) = diffusion coefficients
+! Air(1:N) = Air density
+!  SurfaceEm  = Surface Emission intensity
+!  VolumeEm(1:N)   = Elevated Emission intensity
+!  Vd    = deposition velocity
+!  Lam(1:N)     = concentration of each species
+!
+! Note: it uses Midpoint rule
+! -----------------------------------------------------------------------------
+!
+  implicit none
+  integer, intent(in) :: N, Nstep, Nspec
+  double precision, intent(in)  :: DT, X(N), U(N), K(N), Air(N), &
+                          Vd(Nspec), SurfaceEm(Nspec),   &
+			  Bdry(2,Nspec), VolumeEm(N, Nspec)
+  double precision, intent(inout) :: Lam(N,Nspec)
+
+!  Local Variables
+  integer, parameter :: kl=1, ku=1
+  integer, parameter :: ldjac=kl+ku+1, lda = 2*kl+ku+1
+  double precision, parameter :: alpha = 1.d0, beta = 1.d0
+  double precision :: Jac(ldjac,N),  A(lda,N)
+  double precision :: C1(N), B(N), D(2)
+  integer :: istep, ispec, info, ipiv(N)
+
+!  The Jacobian
+  call ADVDIFF_JAC_FDZ_MF2(N,X,U,K,Air,Jac)  
+!  A = I - DT*gam*Jac
+  A(kl+1:lda,1:N) = -DT/2.d0*Jac(1:ldjac,1:N)
+  A(kl+ku+1,1:N)  = 1.d0 + A(kl+ku+1,1:N)  ! add 1 to diagonal terms
+  call DGBTRF( N, N, kl, ku, A, lda, IPIV, INFO )
+  if (INFO.ne.0) then
+     print*,'In ADVDIFF_FDZ_MF INFO = ',INFO
+  end if
+            
+time:do istep = 1, Nstep
+spc:   do ispec = 1, Nspec
+          !call DGBTRS('T', N, kl, ku, 1, A, lda, IPIV, &
+          !	       Lam(1,ispec), N, INFO )
+          C1(1:N) = Lam(1:N,ispec) 
+	  Lam(1,ispec) = (1.d0 - DT*Vd(ispec)/(X(2)-X(1)))*C1(1)
+	  call DGBMV('T', N, N, kl, ku, DT/2.d0, Jac, ldjac,&
+                       C1, 1, beta, Lam(1,ispec), 1)
+          call DGBTRS('T', N, kl, ku, 1, A, lda, IPIV, &
+                       Lam(1,ispec), N, INFO )
+       end do spc
+     end do   time
+   
+end subroutine ADJ_ADVDIFF_FDZ_MF
+
+
+
+
+
+! Advection-diffusion derivative by finite volumes
+! Advection is discretized by simple upwind
+subroutine ADVDIFF_FUN_FDZ_MF(N,Z,W,K,Air,Bdry,SurfEm,Vd,C,DC)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), Air(N), &
+                          Vd, SurfEm, Bdry(2),C(N)
+! Time derivative of the concentration
+double precision, intent(out) :: DC(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux, advflux, den, AK(N)
+! flux = total flux through i-1/2
+double precision :: flux(N+1)
+
+! The diffusive part AKdc/dz at i-1/2
+AK = Air*K
+
+! Leftmost boundary
+   ! B(1) = - K dc/dz at z(1)
+   !     = (-U(1)*(Bdry(1)-C(1)) - Vd*C(1) + E)*xi(N,X,U,K,X(1),1)
+difflux = Vd*C(1) - SurfEm 
+if ( W(1)>0.d0 ) then
+     DC(1) = -W(1)*(C(1)-Bdry(1))/(Z(2)-Z(1))       &
+       + (AK(2)+AK(1))/2*(C(2)-C(1))/(Z(2)-Z(1))**2 &
+          /Air(1) -difflux/(Z(2)-Z(1))
+else
+     DC(1) = -W(1)*(C(2)-C(1))/(Z(2)-Z(1))          &
+       + (AK(2)+AK(1))/2*(C(2)-C(1))/(Z(2)-Z(1))**2 &
+         /Air(1)  -difflux/(Z(2)-Z(1))   
+end if  
+
+! Intermediate Boundaries
+do i=2,N-1
+  if (W(i)>=0) then
+    DC(i) = -W(i)*(C(i)-C(i-1))/(Z(i)-Z(i-1))
+  else
+    DC(i) = -W(i)*(C(i+1)-C(i))/(Z(i+1)-Z(i))
+  end if  
+  DC(i) = DC(i) + &
+         ( (AK(i+1)+AK(i))*(C(i+1)-C(i))/(Z(i+1)-Z(i)) &
+	  -(AK(i)+AK(i-1))*(C(i)-C(i-1))/(Z(i)-Z(i-1)) &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+end do
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+    DC(N)   = -W(N)*(Bdry(2)-C(N))/(Z(N)-Z(N-1)) +     &
+         ( 2*AK(N)*(Bdry(2)-C(N))/(Z(N)-Z(N-1))        &
+	  -(AK(N)+AK(N-1))*(C(N)-C(N-1))/(Z(N)-Z(N-1)) &
+	  )/( Air(N)*2*(Z(N)-Z(N-1)) )
+    !advflux =  W(N)*Bdry(2)
+    !difflux = -W(N)*(Bdry(2)-C(N))
+else ! outflow
+    DC(N)   = -W(N)*(C(N)-C(N-1))/(Z(N)-Z(N-1)) +      &
+         ( -(AK(N)+AK(N-1))*(C(N)-C(N-1))/(Z(N)-Z(N-1)) &
+	 )/( Air(N)*2*(Z(N)-Z(N-1)) )
+    !advflux = W(N)*C(N)
+    !difflux = 0.d0
+end if      
+
+
+end subroutine ADVDIFF_FUN_FDZ_MF
+
+
+
+
+! -----------------------------------------------------------------------------
+! Advection-diffusion derivative by finite volumes
+! Advection is discretized by simple upwind
+! Jac is in Blas-banded-format:  Jac(1:3,j) = A(j-1:j+1,j)
+! -----------------------------------------------------------------------------
+subroutine ADVDIFF_JAC_FDZ_MF(N,Z,W,K,Air,Jac)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), Air(N)
+! Jacobian for time derivative of the concentration
+integer, parameter :: kl=1, ku=1
+double precision, intent(out) :: Jac(kl+ku+1,N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux
+double precision :: AK(N), DZ(N)
+
+AK = Air*K
+DZ(1:N-1) = Z(2:N)-Z(1:N-1); DZ(N)=DZ(N-1)
+
+Jac = 0.d0
+
+if ( W(1)>0.d0 ) then
+    Jac(row(1,1),1)  =  -W(1)/DZ(1)       &
+       -(AK(2)+AK(1))/2/DZ(1)**2/Air(1) 
+    Jac(row(1,2),2)  =        &
+       + (AK(2)+AK(1))/2/DZ(1)**2/Air(1) 
+else
+    Jac(row(1,1),1)  =  W(1)/DZ(1)  &
+       - (AK(2)+AK(1))/2/DZ(1)**2/Air(1)     
+    Jac(row(1,2),2)  = -W(1)/DZ(1)          &
+       + (AK(2)+AK(1))/2/DZ(1)**2/Air(1)     
+end if  
+
+! Intermediate Boundaries
+do i=2,N-1
+  if (W(i)>=0) then
+    Jac(row(i,i),i)     = -W(i)/DZ(i-1)
+    Jac(row(i,i-1),i-1) =  W(i)/DZ(i-1)
+  else
+    Jac(row(i,i),i)     =  W(i)/DZ(i)
+    Jac(row(i,i+1),i+1) = -W(i)/DZ(i)
+  end if  
+  Jac(row(i,i-1),i-1) = Jac(row(i,i-1),i-1) +    &
+         ( (AK(i)+AK(i-1))/DZ(i-1)               &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+  Jac(row(i,i),i)     = Jac(row(i,i),i) -        &
+         ( (AK(i)+AK(i-1))/DZ(i-1)               &
+          +(AK(i+1)+AK(i))/DZ(i)                 &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+  Jac(row(i,i+1),i+1) = Jac(row(i,i+1),i+1) +    &
+         ( (AK(i+1)+AK(i))/DZ(i)                 &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+end do
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+  Jac(row(N,N-1),N-1)    = Jac(row(N,N-1),N-1) + &
+             ( (AK(N)+AK(N-1))/DZ(N-1)           &
+	     )/( Air(N)*2*DZ(N-1) )
+  Jac(row(N,N),N)     = Jac(row(N,N),N) +        &
+               W(N)/DZ(N-1) +                    &
+             ( -2*AK(N)/DZ(N-1)                  &
+	      -(AK(N)+AK(N-1))/DZ(N-1)           &
+	     )/( Air(N)*2*DZ(N-1) )
+else ! outflow
+  Jac(row(N,N-1),N-1)    = Jac(row(N,N-1),N-1) + &
+           W(N)/DZ(N) +                          &
+         ( (AK(N)+AK(N-1))/DZ(N)                 &
+	 )/( Air(N)*2*DZ(N) )  
+  Jac(row(N,N),N)     = Jac(row(N,N),N) +  &
+         -W(N)/(Z(N)-Z(N-1)) +             &
+         ( -(AK(N)+AK(N-1))/DZ(N)          &
+	 )/( Air(N)*2*DZ(N) )
+end if      
+
+contains
+  
+  integer function row(i,j)
+  ! gives the row of the Blas banded format for pentadiagonal Jacobian
+  integer :: i, j
+  integer, parameter :: kl=1, ku=1
+  if ( (i<=0) .or. (j<=0) ) then
+     print*,'Error in ADVDIFF_JAC_FDZ_MF. i,j=',i,j
+     stop
+  end if
+  row = ku + 1 + i - j
+  end function row
+
+end subroutine ADVDIFF_JAC_FDZ_MF
+
+subroutine ADVDIFF_JAC_FDZ_MF2(N,Z,W,K,Air,Jac)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), Air(N)
+! Jacobian for time derivative of the concentration
+integer, parameter :: kl=1, ku=1
+double precision, intent(out) :: Jac(kl+ku+1,N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux
+double precision :: AK(N), DZ(N)
+
+AK = Air*K
+DZ(1:N-1) = Z(2:N)-Z(1:N-1); DZ(N)=DZ(N-1)
+
+Jac = 0.d0
+
+if ( W(1)>0.d0 ) then
+    Jac(row(1,1),1)  =  -W(1)/DZ(1)       &
+       -(AK(2)+AK(1))/2/DZ(1)**2/Air(1) 
+    Jac(row(1,2),2)  =        &
+       + (AK(2)+AK(1))/2/DZ(1)**2/Air(1) 
+else
+    Jac(row(1,1),1)  =  W(1)/DZ(1)  &
+       - (AK(2)+AK(1))/2/DZ(1)**2/Air(1)     
+    Jac(row(1,2),2)  = -W(1)/DZ(1)          &
+       + (AK(2)+AK(1))/2/DZ(1)**2/Air(1)     
+end if  
+
+! Intermediate Boundaries
+do i=2,N-1
+  if (W(i)>=0) then
+    Jac(row(i,i),i)     = -W(i)/DZ(i-1)
+    Jac(row(i,i-1),i-1) =  W(i)/DZ(i-1)
+  else
+    Jac(row(i,i),i)     =  W(i)/DZ(i)
+    Jac(row(i,i+1),i+1) = -W(i)/DZ(i)
+  end if  
+  Jac(row(i,i-1),i-1) = Jac(row(i,i-1),i-1) +    &
+         ( (AK(i)+AK(i-1))/DZ(i-1)               &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+  Jac(row(i,i),i)     = Jac(row(i,i),i) -        &
+         ( (AK(i)+AK(i-1))/DZ(i-1)               &
+          +(AK(i+1)+AK(i))/DZ(i)                 &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+  Jac(row(i,i+1),i+1) = Jac(row(i,i+1),i+1) +    &
+         ( (AK(i+1)+AK(i))/DZ(i)                 &
+	 )/( Air(i)*(Z(i+1)-Z(i-1)) )
+end do
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+  Jac(row(N,N-1),N-1)    = Jac(row(N,N-1),N-1) + &
+             ( (AK(N)+AK(N-1))/DZ(N-1)           &
+	     )/( Air(N)*2*DZ(N-1) )
+  Jac(row(N,N),N)     = Jac(row(N,N),N) +        &
+               W(N)/DZ(N-1) +                    &
+             ( -2*AK(N)/DZ(N-1)                  &
+	      -(AK(N)+AK(N-1))/DZ(N-1)           &
+	     )/( Air(N)*2*DZ(N-1) )
+else ! outflow
+  Jac(row(N,N-1),N-1)    = Jac(row(N,N-1),N-1) + &
+           W(N)/DZ(N) +                          &
+         ( (AK(N)+AK(N-1))/DZ(N)                 &
+	 )/( Air(N)*2*DZ(N) )  
+  Jac(row(N,N),N)     = Jac(row(N,N),N) +  &
+         -W(N)/(Z(N)-Z(N-1)) +             &
+         ( -(AK(N)+AK(N-1))/DZ(N)          &
+	 )/( Air(N)*2*DZ(N) )
+end if      
+
+contains
+  
+  integer function row(i,j)
+  ! gives the row of the Blas banded format for pentadiagonal Jacobian
+  integer :: i, j
+  integer, parameter :: kl=1, ku=1
+  if ( (i<=0) .or. (j<=0) ) then
+     print*,'Error in ADVDIFF_JAC_FDZ_MF. i,j=',i,j
+     stop
+  end if
+  row = ku + 1 + i - j
+  end function row
+
+end subroutine ADVDIFF_JAC_FDZ_MF2
+
+!-------------------------------------------------------------------------------
+! Advection-diffusion derivative by finite volumes
+! Advection is discretized by simple upwind
+! The free vertical term B such that c' = fun_fdz = jac_fdz * c + B
+!-------------------------------------------------------------------------------
+subroutine ADVDIFF_FREE_FDZ_MF(N,Z,W,K,Bdry,SurfEm,Vd,C,B)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), &
+                          Vd, SurfEm, Bdry(2),C(N)
+! The free term
+double precision, intent(out) :: B(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+double precision :: difflux, advflux
+
+B(1:N) = 0.d0
+
+! Leftmost boundary
+   ! B(1) = - K dc/dz at z(1)
+   !     = (-U(1)*(Bdry(1)-C(1)) - Vd*C(1) + E)*xi(N,X,U,K,X(1),1)
+if ( W(1)>0.d0 ) then
+     advflux = W(1)*Bdry(1)
+     difflux = Vd*C(1) - SurfEm 
+else
+     advflux = 0.d0
+     difflux = Vd*C(1) - SurfEm 
+end if  
+B(1) =  - (difflux - advflux)/(z(2)-z(1)) 
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+    B(N) = -W(N)*Bdry(2)/(Z(N)-Z(N-1)) +  &
+            K(N)*Bdry(2)/(Z(N)-Z(N-1))**2
+else ! outflow
+    B(N) = 0.d0
+end if   
+
+
+end subroutine ADVDIFF_FREE_FDZ_MF
+
+

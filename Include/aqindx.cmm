@@ -1,0 +1,13 @@
+      integer iair,ih2o,io2,ico,ino2,iho2,iso2,io3
+      integer ich4,ico2,ih2,in2
+      integer itrace,ispg_idx,ispl_idx,ian,jan,nonzero
+      integer jno2,ibc,idust2,idust3,iopm10,idms,ioc
+      integer issc,issf,iso4,idust1,iopm25,jaoedust
+      common /aqspid/iair,ih2o,io2,ico,ino2,iho2,iso2,io3,ich4
+      common /aqspid/ico2,ih2,in2,itrace,ispg_idx(10),ispl_idx(10)
+      common /aqmatr/ian(mxspg*10),jan(mxspg*10),nonzero
+      integer nwetso2,nwetso4,nweth2o2,nwethno3
+      data nwetso2,nwetso4,nweth2o2,nwethno3/98,99,100,101/
+      data jno2/102/,ibc/56/,ioc/57/,issf/58/,issc/59/,idust1/62/
+      data idust2/63/,idust3/64/,iopm10/60/,iopm25/61/,idms/65/
+      data iso4/11/,jaoedust/132/

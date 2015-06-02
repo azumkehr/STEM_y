@@ -1,0 +1,10 @@
+cc    aqsym.cmm     *****
+      character*16 sname,lname1,jvname(30),extname(6)      ! j value names
+      common /aqsymb/sname(mxspg,3),lname1(1000)
+      data jvname/'J-NO2','J-NO3-NO','J-NO3-NO2','J-O3P','J-O3D',
+     1 'J-HONO-NO','J-HONO-NO2','J-HNO3','J-HNO4','J-H2O2','J-HCHO-R',
+     2 'J-HCHO-M','J-CCHO','J-RCHO','J-ACET','J-MEK','J-COOH','J-ROOH',
+     3 'J-GLY-R','J-GLY-ABS','J-MGLY','J-BACL','J-BALD','J-METHACRO',
+     4 'J-MVK','J-ISOPROD','J-PROD2','J-RNO3','J-DCB2','J-DCB3'/
+      data extname/'AOE-DUST','AOE-SO4','AOE-BC','AOE-SS','AOE-OC',
+     1 'AOE-TOTAL'/  ! aerosal extinction coefficient

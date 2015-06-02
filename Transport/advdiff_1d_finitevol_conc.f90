@@ -1,0 +1,668 @@
+!-----------------------------------------------------------------------
+! Timesteps the advection-diffusion equation on [0,T]
+! It takes the minimal number of time steps needed to satisfy CFL<CFLMAX
+! ***** CONCENTRATIONS ARE ABSOLUTE, E.G. MOLEC/CM3 *****
+!-----------------------------------------------------------------------
+
+!*************************************************************************
+      subroutine tranx_fv(ix,iy,iz,bounds,s1,u,kh,sx,dt,dx)
+!**************************************************************************
+!---+----1----+----2----+----3----+----4----+----5----+----6----+----7--
+      include 'aqmax.param'
+      !include 'aqindx.cmm'
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: s1(ix,iy,iz,*), u(ix,iy,*), kh(ix,iy,*)
+      real :: sx(iy,iz,2,*), dx(*), dt
+      !real :: bndf(2,mxspg),bndv(2,mxspg)
+      !real :: gen(mxgr*mxspg)
+      real*8 :: wind(1:ix), dif(1:ix), air(1:ix), conc(1:ix,mxspg)
+      real*8 :: sb(1:2,mxspg), Deltax, Deltat
+      integer :: num, i, j, k, Nsteps, Istep
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      start  = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+!                           transport in x-direction
+
+      num = nend-nstart+1         ! number of transported species
+      
+      Deltax = dx(1)       ! grid size: this works for uniform grids only
+      ! Max time step is 300 sec
+      Nsteps = int(dt/300.0)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      
+      do j=ystart,yend
+      do k=zstart,zend
+      
+      
+      Conc(1:ix,1:num) = s1(1:ix,j,k,nstart:nend)
+      Wind(1:ix) = u(1:ix,j,k)
+      Dif(1:ix) = kh(1:ix,j,k)
+      ! Air(1:ix) = s1(1:ix,j,k,iair)
+      Sb(1:2,1:num) = sx(j,k,1:2,1:num)
+      ! --- Time Loop starts here
+      DO Istep = 1, Nsteps
+         call ADVDIFF_FVH_U(Deltat, ix, num, Deltax, &
+                            Wind, Dif, Conc, Sb)
+      ENDDO
+      ! --- Time Loop ends here
+      s1(1:ix,j,k,nstart:nend) = max(Conc(1:ix,1:num),0.d0)
+      end do ! iz
+      end do ! iy
+      return
+      end
+
+!*********************************************************************
+      subroutine trany_fv(ix,iy,iz,bounds,s1,v,kh,sy,dt,dy)
+!*********************************************************************
+      include 'aqmax.param'
+      !include 'aqindx.cmm'
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real ::  s1(ix,iy,iz,*), v(ix,iy,*), kh(ix,iy,*)
+      real ::  sy(ix,iz,2,*), dy(*), dt
+      real*8 :: Wind(1:iy), Dif(1:iy), Air(1:iy), Conc(1:iy,mxspg)
+      real*8 :: Sb(1:2,mxspg), Deltay, Deltat
+      integer :: num, i, j, k, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      start  = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+!      
+      num=nend-nstart+1    ! number of transported species
+      Deltay = dy(1)       ! grid size: this works for uniform grids only
+      ! Max time step is 300 sec
+      Nsteps = int(dt/300.0)+1
+      Deltat = dt/Dble(Nsteps)        
+
+      do i=xstart,xend
+      do k=zstart,zend
+      
+      Conc(1:iy,1:num) = s1(i,1:iy,k,nstart:nend)
+      Wind(1:iy) = v(i,1:iy,k)
+      Dif(1:iy) = kh(i,1:iy,k)
+      ! Air(1:iy) = s1(i,1:iy,k,iair)
+      Sb(1:2,1:num) = sy(i,k,1:2,1:num)
+      call ADVDIFF_FVH_U(Deltat, Nsteps, iy, num, Deltay, &
+                         Wind, Dif, Conc, Sb)
+      s1(i,1:iy,k,nstart:nend) = max(Conc(1:iy,1:num),0.d0)
+      
+      end do ! iz
+      end do ! ix
+      return
+      end
+      
+      
+!*********************************************************************
+      subroutine tranz_fv(ix,iy,iz,bounds,s1,w,kv,q,em,vg,sz,dt,dz)
+!*********************************************************************
+      include 'aqmax.param'
+      !include 'aqindx.cmm'
+!      Arguments:      
+      integer :: ix, iy, iz
+      integer :: bounds(8)
+      real :: s1(ix,iy,iz,*), w(ix,iy,iz), kv(ix,iy,iz)
+      real :: q(ix,iy,*), em(ix,iy,iz,*), vg(ix,iy,*), sz(ix,iy,*)
+      real :: dt, dz(ix,iy,*)
+! Local variables:      
+      real*8 :: Deltat, Z(iz), Wind(iz), Dif(iz)
+      real*8 :: Conc(iz,mxspg), Sb(2,mxspg), Air(iz) 
+      real*8 :: SurfaceEm(mxspg), VolumeEm(iz,mxspg), DepVel(mxspg)     
+      real*8 :: Conc1(iz,mxspg)
+      integer :: i, j, Nsteps
+      integer :: xstart,xend,ystart,yend
+      integer :: zstart,zend,nstart,nend
+!
+!    The computational bounds 
+      xstart = bounds(1); xend = bounds(2)
+      ystart = bounds(3); yend = bounds(4)
+      start  = bounds(5); zend = bounds(6)
+      nstart = bounds(7); nend = bounds(8)
+
+      num = nend-nstart+1 ! number of species
+      ! Max time step is 300 sec
+      Nsteps = int(dt/300.0)+1
+      Deltat = dt/Dble(Nsteps)        
+      
+      do i=xstart,xend
+      do j=ystart,yend
+      
+      ! The vertical grid
+      Z(1) = 0.d0
+      do k = 1, iz-1
+        Z(k+1) = Z(k) + dz(i,j,k)
+      end do	
+      
+      
+      Wind(1:iz)  = w(i,j,1:iz)
+      Dif(1:iz)   = kv(i,j,1:iz)
+      Conc(1:iz,1:num) = s1(i,j,1:iz,nstart:nend)
+      Air(1:iz) = s1(i,j,1:iz,iair)
+      Sb(1,1:num) = s1(i,j,1,nstart:nend)
+      Sb(2,1:num) = sz(i,j,nstart:nend)
+      SurfaceEm(1:num) = q(i,j,nstart:nend)
+      VolumeEm(1:iz,1:num) = em(i,j,1:iz,nstart:nend)
+      DepVel(1:num)        = vg(i,j,nstart:nend)
+              
+      call ADVDIFF_FVZ(Deltat, Nsteps, iz, num, Z, Wind, Dif, &
+                    Conc,Sb, SurfaceEm, VolumeEm, DepVel)   
+
+      s1(i,j,1:iz,nstart:nend) = max(Conc(1:iz,1:num),0.d0)
+		       
+      end do ! j
+      end do ! i
+!
+      return
+      end
+  
+      
+  SUBROUTINE ADVDIFF_FVH_U(T,N,Nspec,DX,W,K,C,BDRY)
+  IMPLICIT NONE
+! -- Input arguments:  
+      INTEGER, INTENT(IN) :: N, Nspec
+      REAL*8, INTENT(IN)  :: T, W(N), K(N), BDRY(2,Nspec)
+! -- Input/Output arguments:  
+      REAL*8, INTENT(INOUT)  :: C(N,Nspec)
+! -- Local variables:
+      REAL*8, PARAMETER :: CFLMAX = 0.5d0
+      REAL*8  :: AFLUX(N), S1(N), S2(N)
+      INTEGER :: Istep, Nsteps, Ispec
+      REAL*8  :: DA(N), DB(N), DC(N), Gamma
+      REAL*8  :: DT, DX, CFL, C1(N)
+!-----------------------------------------------------------------------
+!       T       = Time interval for integration is [0,T]
+!       N       = No. of Grid Points
+!       Nspec   = No. of species 
+!       X(I)    = CENTER OF GRID I (not explicitly used)
+!       DX      = Length of cell I (equal for all cells)
+!       C(i,j)  = CONCENTRATION of species j AT X(i) 
+!                 - at time=0 on input
+!                 - at time=T on output   
+!       W(I)    = WIND SPEED AT X(I)
+!       K(I)    = DIFFUSION COEFFICIENT AT X(I)
+!       SRC(I)  = SOURCE STRENGTH AT X(I)
+!
+!       AFLUX(I) = TOTAL FLUX DIFFERENCE AT X(I)
+!-----------------------------------------------------------------------
+! --- Check that we have uniform grid
+
+
+! Estimate the Courant number	
+      CFL = MAXVAL(T/DX*W(1:N))
+      IF ( CFL > CFLMAX ) THEN
+	 NSTEPS = INT(CFL/CFLMAX)+1
+	 DT = T/DBLE(NSTEPS)  
+      ELSE
+	 NSTEPS = 1 
+	 DT = T  
+      END IF 
+
+! Build the diffusion flux Jacobian J
+      CALL DIFF_FLUX_U_JAC(N,DX,W,K,DA,DB,DC)
+! Build I-h*gamma*J
+      Gamma = 1.0D0 + SQRT(2.0D0)/2.0D0
+      DA(1:N) = 1.0D0 - (DT*Gamma)*DA(1:N)
+      DB(1:N) =       - (DT*Gamma)*DB(1:N)
+      DC(1:N) =       - (DT*Gamma)*DC(1:N)
+! Factorize this matrix
+      CALL TRI_FA(N, DA, DB, DC)
+      
+
+! Start the time loop
+time:  DO Istep = 1, NSTEPS  
+! Start the species loop
+spec:   DO Ispec = 1, Nspec  
+! ---  RK Stage 1 ---
+          CALL AD_FLUX_U(N,DX,W,K,C(1,Ispec),BDRY(1,Ispec),AFLUX)
+	  S1(1:N) = AFLUX(1:N)
+	  S2(1:N) = S1(1:N)
+	  CALL TRI_SOL(N, DA, DB, DC, S1)	  
+	  C1(1:N) = C(1:N,Ispec) + DT*S1(1:N)
+! ---  RK Stage 2 ---
+          CALL AD_FLUX_U(N,DX,W,K,C1,BDRY(1,Ispec),AFLUX)
+	  S2(1:N) = AFLUX(1:N)+2*(S2(1:N)-S1(1:N))
+	  CALL TRI_SOL(N, DA, DB, DC, S2)	  
+	  C1(1:N) = C1(1:N) + DT*S2(1:N)
+! ---  RK Solution ---
+	  C(1:N,Ispec) = ( C(1:N,Ispec) + C1(1:N) )/2
+        END DO spec
+       END DO time
+! End of the time loop
+
+       END SUBROUTINE ADVDIFF_FVH_U
+!-----------------------------------------------------------------------
+       
+       
+       
+       
+!-----------------------------------------------------------------------
+!     Computes the limited advective flux plus the 
+!     diffusive flux on a uniform grid
+!-----------------------------------------------------------------------
+  SUBROUTINE AD_FLUX_U(N,DX,W,K,C,BDRY,AFLUX)
+!
+  IMPLICIT NONE
+!
+! Arguments:
+  INTEGER, INTENT(IN) :: N
+  REAL*8, INTENT(IN) :: DX, W(N), K(N), C(N), BDRY(2) 
+  REAL*8, INTENT(OUT) :: AFLUX(N)
+! Local Variables:
+  REAL*8 :: R, PHI_U, Wind, F(N), FLUX(N+1)
+  REAL*8 :: Eps = 1.d-14
+  INTEGER :: I
+
+! ----------------------------      
+! Input Arguments:
+!       N       = No. OF Grid Points
+!       X(I)    = CENTER OF GRID I, not explicitly given
+!       C(I)    = CONCENTRATION  AT X(I)    
+!       W(I)    = WIND SPEED AT X(I)
+!       K(I)    = DIFFUSION COEF. AT X(I)
+! ----------------------------
+! Output Arguments:
+!       AFLUX(I) = TOTAL FLUX DIFFERENCE OVER DX, CELL I
+! ----------------------------
+! Local Variables:
+!       FLUX(I) = TOTAL FLUX AT X(I-1/2) interface
+!       F(I)    = ADVECTIVE FLUX AT X(I)
+! ----------------------------  
+
+! --- The advective flux values at the cell centers
+  F(1:N) = C(1:N)*W(1:N)
+	
+  DO I=1,N+1
+!
+!  The wind strength through the I-1/2 interface is:
+     IF (I==1) THEN
+        Wind = W(1)
+     ELSEIF (I==N+1) THEN
+        Wind = W(N)	
+     ELSE
+        Wind = ( W(I)+W(I-1) )/2.0d0
+     END IF	
+!   
+!  Compute the total (advective + diffusive) flux through I-1/2 interface.
+!
+     IF ( Wind >= 0.d0 ) THEN !========================================>
+!	 
+          IF (I == 1) THEN       ! I=1 is inflow boundary
+	    FLUX(1) = W(1)*BDRY(1)  &
+	              - K(1)*( C(1) - BDRY(1) )/DX
+	  ELSEIF (I == 2) THEN
+	    R = ( C(2)-C(1)+Eps )/( C(2)-BDRY(1)+Eps )
+	    FLUX(2) = (F(1) +  PHI_U(R)*(F(1)-BDRY(1)*W(1))) &
+                      - (K(2)+K(1))/2.d0*( C(2) - C(1) )/DX 
+	  ELSEIF (I == N+1) THEN  ! I=N is outflow boundary
+	    FLUX(N+1) = (1.5D0*F(N)-0.5D0*F(N-1)) - 0.0D0 
+	  ELSE
+	    R = ( C(I)-C(I-1)+Eps )/( C(I-1)-C(I-2)+Eps )
+	    FLUX(I) = F(I-1) + PHI_U(R)*(F(I-1)-F(I-2)) &
+	              - (K(I)+K(I-1))/2.d0*(C(I)-C(I-1))/DX
+          END IF
+!
+     ELSE  ! Wind < 0          !========================================>
+!	  
+          IF (I == 1) THEN        ! I=1 is outflow boundary
+	    FLUX(1) = (1.5D0*F(1)-0.5D0*F(2)) &
+	              - 0.0D0
+	  ELSEIF (I == N) THEN
+	    R = ( C(I-1)-C(I)+Eps )/( C(I)-BDRY(2)+Eps )
+	    FLUX(I) = (F(N) + PHI_U(R)*(F(N)-BDRY(2)*W(I))) &
+	              - (K(N)+K(N-1))/2.d0*(C(N)-C(N-1))/DX 
+	  ELSEIF (I == N+1) THEN  ! I=N is inflow boundary
+	    FLUX(N+1) = W(N)*BDRY(2) &
+	                -  K(N)*(BDRY(2)-C(N))/DX
+	  ELSE
+	    R = ( C(I-1)-C(I)+Eps )/( C(I)-C(I+1)+Eps )
+	    FLUX(I) = F(I) + PHI_U(R)*(F(I)-F(I+1)) &
+	              - (K(I)+K(I-1))/2.d0*(C(I)-C(I-1))/DX 
+          END IF 
+!	  
+     END IF                    !========================================> 
+!	    
+  END DO 
+!
+!     
+! Compute Flux differences for each cell over DX.
+! This gives the time derivative of the mean concentration in each cell.	
+  DO I = 1, N
+      AFLUX(I) = - ( FLUX(I+1) - FLUX(I) )/DX 
+  END DO  
+
+
+  END SUBROUTINE AD_FLUX_U
+!-----------------------------------------------------------------------
+
+
+
+      
+!-----------------------------------------------------------------------
+! The Limiter Function
+      DOUBLE PRECISION FUNCTION PHI_U ( R )
+      DOUBLE PRECISION, INTENT(IN) ::  R
+      PHI_U = 5.0D-1*DMAX1(0.D0,DMIN1(2.D0*R, &
+             DMIN1(2.D0,(1.D0+2.D0*R)/3.D0)))
+      END FUNCTION PHI_U
+!-----------------------------------------------------------------------
+
+
+
+      
+      
+      
+      
+!-----------------------------------------------------------------------
+!     Computes the Jacobian of the diffusive flux on a uniform grid
+!-----------------------------------------------------------------------
+      SUBROUTINE DIFF_FLUX_U_JAC(N,DX,W,K,DA,DB,DC)
+!
+      IMPLICIT NONE
+!
+! Input Arguments:
+      INTEGER, INTENT(IN) :: N
+      REAL*8, INTENT(IN) :: DX, W(N), K(N)
+! Output Arguments:     
+      REAL*8, INTENT(OUT) :: DA(N), DB(N), DC(N)
+! Local Variables:      
+      INTEGER :: I
+      REAL*8 :: DF1(N+1), DF2(N+1)
+
+!
+!       N       = No. OF Grid Points
+!       X(I)    = CENTER OF GRID I, does not appear explicitly
+!       DX      = uniform grid spacing
+!       K(I)    = Diffusion at AT X(I)
+!       FLUX(I) = FLUX AT X(I-1/2)
+! DA=DIAGONAL, DB=SUPRA, DC=SUB, INDEX=LINE NO. entries in the Jacobian
+! DF1(i) = D_flux(i)/d_c(i-1),  DF2(i) = D_flux(i)/d_c(i)
+      
+!   Diffusive fluxes through the cell boundaries I-1/2
+        DF1(1:N+1) = 0.0D0
+	DF2(1:N+1) = 0.0D0
+        DO I = 2, N
+	    ! FLUX(I) = ( K(I)*C(I) - K(I-1)*C(I-1) )/DX
+	    DF1(I)  = -(K(I)+K(I-1))/(2*DX) 
+	    DF2(I)  =  (K(I)+K(I-1))/(2*DX)
+	END DO  
+	IF ( W(1) > 0.0D0 ) THEN ! I=1 is inflow boundary
+	    ! FLUX(1) = ( K(1)*C(1) - K(1)*BDRY(1) )/DX
+	    DF1(1) = 0.d0; DF2(1) = K(1)/DX
+	ELSE                     ! I=1 is outflow boundary
+	    ! FLUX(1) = 0.0D0
+	    DF1(1) = 0.d0; DF2(1) = 0.d0
+	END IF
+	IF ( W(N) < 0.0D0 ) THEN ! I=N is inflow boundary
+	    ! FLUX(N+1) = ( K(N)*BDRY(2) - K(N)*C(N) )/DX
+	    DF1(N+1) = -K(N)/DX; DF2(N+1) = 0.d0
+	ELSE
+	    ! FLUX(N+1) = 0.0D0
+	    DF1(N+1) = 0.0D0; DF2(N+1) = 0.0D0
+	END IF
+        
+!  Diffusive flux differences     
+        DO I = 1, N
+	  ! DFLUX(I) = (FLUX(I+1) - FLUX(I))/DX
+	  DA(I) = ( DF1(I+1) - DF2(I) )/DX  ! d_dflux(i)/d_c(i)
+	  DB(I) = DF2(I+1)/DX               ! d_dflux(i)/d_c(i+1)
+	  DC(I) = - DF1(I)/DX	            ! d_dflux(i)/d_c(i-1)  
+	END DO  
+
+      END SUBROUTINE DIFF_FLUX_U_JAC
+!-----------------------------------------------------------------------
+
+
+
+
+
+subroutine ADVDIFF_FVZ(DT, Nstep, NGP, Nspec, X, U, K, C, &
+                    BDRY, SurfaceEm, VolumeEm, Vd)
+!  Performs Nstep timesteps of length DT
+!      to solve the adv_diff equation in vertical direction
+!      using finite volume method
+! 
+!  NGP   = no. of grid points
+!  Nspec = no. of chemical species
+!  Nstep = no of time steps
+!  X(1:NGP) = grid point coordinates
+!  U(1:NGP) = wind speeds
+!  K(1:NGP) = diffusion coefficients
+!  SurfaceEm  = Surface Emission intensity
+!  VolumeEm   = Elevated Emission intensity
+!  Vd    = deposition velocity
+!  C     = concentration of each species
+!
+! Note: it uses Ros-2 with positive implementation
+!
+  implicit none
+  integer, intent(in) :: NGP, Nstep, Nspec
+  double precision, intent(in)  :: DT, X(NGP), U(NGP), K(NGP), &
+                          Vd(Nspec), SurfaceEm(Nspec), &
+			  Bdry(2,Nspec), VolumeEm(NGP, Nspec)
+  double precision, intent(inout) :: C(NGP,Nspec)
+
+!  Local Variables
+  ! Jacobian Matrix 
+  double precision :: DCL(NGP), DCD(NGP), DCU(NGP)
+  double precision :: S1(NGP), S2(NGP), x1, x2, w1, w2
+  double precision :: C1(NGP), DU2(NGP), gam
+  integer :: istep, ispec, info, ipiv(NGP)
+
+  gam = 1 + sqrt(2.d0)/2.d0
+!  The Jacobian
+  call ADVDIFF_JAC_FVZ(NGP,X,U,K,Vd,C,DCL,DCD,DCU)  
+!  I - DT*J
+  DCL(1:NGP) =      - DT*gam*DCL(1:NGP)
+  DCD(1:NGP) = 1.d0 - DT*gam*DCD(1:NGP)
+  DCU(1:NGP) =      - DT*gam*DCU(1:NGP)
+  ! call TRI_FA(NGP, GA, GB, GC)
+  call DGTTRF( NGP, DCL(2), DCD, DCU, DU2, IPIV, INFO )
+  
+  
+time:  do istep = 1, Nstep
+! Build the rhs  
+spc:   do ispec = 1,Nspec
+          ! Stage 1
+          call advdiff_flux_fvz(NGP,X,U,K,Bdry(1,ispec), &
+	         SurfaceEm(ispec),Vd(ispec),C(1,ispec),S1)
+          call DGTTRS( 'N', NGP, 1, DCL(2), DCD, DCU, DU2, &
+	             IPIV, S1, NGP, INFO )
+          ! Stage 2
+	  C1(1:NGP) = C(1:NGP,ispec) + DT*S1(1:NGP)	     
+          call advdiff_flux_fvz(NGP,X,U,K,Bdry(1,ispec), &
+	         SurfaceEm(ispec),Vd(ispec),C1,S2)
+	  S2 = S2 - 2*S1	 
+          call DGTTRS( 'N', NGP, 1, DCL(2), DCD, DCU, DU2, &
+	             IPIV, S2, NGP, INFO )
+          ! Add the volume emissions  
+          C(1:NGP,ispec) = C(1:NGP,ispec) + DT*1.5*S1(1:NGP) &
+	          + DT*0.5*S2(1:NGP) + DT*VolumeEm(1:NGP,ispec)
+     end do spc
+  end do time
+
+end subroutine ADVDIFF_FVZ
+
+
+! Advection-diffusion derivative by finite volumes
+! Advection is discretized by simple upwind
+subroutine ADVDIFF_FLUX_FVZ(N,Z,W,K,Bdry,SurfEm,Vd,C,DC)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), &
+                          Vd, SurfEm, Bdry(2),C(N)
+! Time derivative of the concentration
+real*8, intent(out) :: DC(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+real*8 :: difflux, advflux
+! flux = total flux through i-1/2
+real*8 :: flux(N+1)
+
+! Leftmost boundary
+   ! B(1) = - K dc/dz at z(1)
+   !     = (-U(1)*(Bdry(1)-C(1)) - Vd*C(1) + E)*xi(N,X,U,K,X(1),1)
+if ( W(1)>0.d0 ) then
+     advflux = W(1)*Bdry(1)
+     difflux = Vd*C(1) - SurfEm 
+else
+     advflux = W(1)*C(1)
+     difflux = Vd*C(1) - SurfEm 
+end if  
+flux(1) =  difflux - advflux 
+
+! Intermediate Boundaries
+do i=2,N
+  if (W(i)>=0) then
+    advflux = W(i-1)*C(i-1)
+  else
+    advflux = W(i)*C(i)
+  end if  
+  difflux = (K(i)+K(i-1))/2.d0*(C(i)-C(i-1))/(Z(i)-Z(i-1))
+  flux(i) = difflux - advflux
+end do
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+    advflux = W(N)*Bdry(2)
+    difflux = -W(N)*(Bdry(2)-C(N))
+else ! outflow
+    advflux = W(N)*C(N)
+    difflux = 0.d0
+end if      
+flux(N+1) =  difflux - advflux 
+
+! Time derivatives
+DC(1) = (flux(2)-flux(1))/(z(2)-z(1))
+do i=2,N
+   DC(i) = (flux(i+1)-flux(i))/(z(i+1)-z(i-1))*2.d0
+end do
+DC(N) = (flux(N+1)-flux(N))/(z(N)-z(N-1))
+
+end subroutine ADVDIFF_FLUX_FVZ
+
+
+! Advection-diffusion derivative by finite volumes
+! Advection is discretized by simple upwind
+subroutine ADVDIFF_JAC_FVZ(N,Z,W,K,Vd,C,DCL,DCD,DCU)
+!
+implicit none
+!
+integer, intent(in) :: N
+double precision, intent(in)  :: Z(N), W(N), K(N), Vd, C(N)
+! Time derivative of the concentration
+real*8, intent(out) :: DCL(N), DCD(N), DCU(N)
+
+! difflux/advflux = diffusive/advective fluxes through i-1/2
+integer :: i
+real*8 :: difflux, advflux
+! flux = total flux through i-1/2
+real*8 :: dflux(N+1), lflux(N+1)
+
+! Leftmost boundary
+if ( W(1)>0.d0 ) then
+    ! flux(1) = Vd*C(1) - SurfEm - W(1)*Bdry(1)
+    dflux(1) = Vd
+    lflux(1) = 0.d0
+else
+    ! flux(1) = Vd*C(1) - SurfEm - W(1)*C(1)
+    dflux(1) = Vd-W(1)
+    lflux(1) = 0.d0
+end if  
+
+! Intermediate Boundaries
+do i=2,N
+  if (W(i)>=0) then
+    ! flux(i) = (K(i)+K(i-1))/2.d0*(C(i)-C(i-1))/(Z(i)-Z(i-1)) - W(i-1)*C(i-1)
+    dflux(i) =(K(i)+K(i-1))/2.d0/(Z(i)-Z(i-1)) 
+    lflux(i) = -(K(i)+K(i-1))/2.d0/(Z(i)-Z(i-1)) - W(i-1)
+  else
+    ! flux(i) = (K(i)+K(i-1))/2.d0*(C(i)-C(i-1))/(Z(i)-Z(i-1)) - W(i)*C(i)
+    dflux(i) =(K(i)+K(i-1))/2.d0/(Z(i)-Z(i-1))  - W(i)
+    lflux(i) = -(K(i)+K(i-1))/2.d0/(Z(i)-Z(i-1)) 
+  end if  
+end do
+
+! Top of the domain
+if ( W(N)<0 ) then ! inflow
+    ! flux(N+1) = - W(N)*Bdry(2)
+    dflux(N+1) = 0.d0
+    lflux(N+1) = 0.d0
+else ! outflow
+    ! flux(N+1) = - W(N)*C(N)
+    dflux(N+1) = 0.d0
+    lflux(N+1) = -W(N)
+end if      
+
+! Time derivatives
+! DC(1) = (flux(2)-flux(1))/(z(2)-z(1))
+DCL(1) = 0.d0
+DCD(1) = (lflux(2)-dflux(1))/(z(2)-z(1))
+DCU(1) = (dflux(2))/(z(2)-z(1))
+do i=2,N
+   ! DC(i) = (flux(i+1)-flux(i))/(z(i+1)-z(i-1))*2.d0
+   DCL(i) = (-lflux(i))/(z(i+1)-z(i-1))*2.d0
+   DCD(i) = (lflux(i+1)-dflux(i))/(z(i+1)-z(i-1))*2.d0
+   DCU(i) = (dflux(i+1))/(z(i+1)-z(i-1))*2.d0
+end do
+! DC(N) = (flux(N+1)-flux(N))/(z(N)-z(N-1))
+DCL(N) = (-lflux(N))/(z(N)-z(N-1))
+DCD(N) = (lflux(N+1)-dflux(N))/(z(N)-z(N-1))
+DCU(N) = 0.d0
+
+end subroutine ADVDIFF_JAC_FVZ
+
+
+!-----------------------------------------------------------------------
+      SUBROUTINE TRI_FA(N, A, B, C)
+! FACTORIZES TRIDIAGONAL SYSTEM 
+! A=DIAGONAL, B=SUPRA, C=SUB, INDEX=LINE NO.
+      INTEGER N 
+      REAL*8 A(N), B(N), C(N)
+!      
+      DO I=1, N-1
+	C(I)   = - C(I+1)/A(I)
+        A(I+1) = A(I+1) + C(I)*B(I)
+      END DO      
+!
+      RETURN
+      END
+!-----------------------------------------------------------------------
+
+
+
+!-----------------------------------------------------------------------
+      SUBROUTINE TRI_SOL(N, A, B, C, Y)
+! SOLVES DIFFUSION (TRIDIAGONAL SYSTEM) 
+! A=DIAGONAL, B=SUPRA, C=SUB, INDEX=LINE NO. 
+      REAL*8 Y(N), A(N), B(N), C(N)
+!      
+      DO I=1, N-1
+        Y(I+1) = Y(I+1) + C(I)*Y(I)
+      ENDDO      
+!
+      Y(N) = Y(N)/A(N)
+!
+      DO I=N-1,1,-1
+        Y(I) = ( Y(I) - B(I)*Y(I+1) )/A(I)
+      END DO
+!
+      RETURN
+      END      
+!-----------------------------------------------------------------------
+
+

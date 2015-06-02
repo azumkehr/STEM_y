@@ -1,0 +1,6 @@
+c---+----1----+----2----+----3----+----4----+----5----+----6----+----7-----
+      double precision eqk,gam,fr,dif,ptgl,henry,kl,kg,wm0,wcont,we,wr
+      common/aqcon5/eqk(mxspg,3),gam(mxspg,3),fr(mxspg,3),
+     &              dif(mxspg),ptgl(mxspg),henry(mxspg),
+     &              kl(mxrxn),kg(mxrxn),wm0(mxspg),
+     &              wcont,we(mxrxn),wr(mxrxn)

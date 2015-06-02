@@ -1,0 +1,69 @@
+#!/usr/bin/python
+
+import os
+import sys
+import datetime
+import argparse
+
+import send_TWH_txt
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description=("""script to start STEM, sending stdout to a dated log file and, optionally, sending a text to Tim when the run finishes."""))
+    parser.add_argument('-r',
+                        '--run_file',
+    					nargs='?',
+    					type=str,
+    					dest='fname_run_file',
+    					default='',
+    					const='',
+    					help=('full path to the STEM run file.'))
+    parser.add_argument('-n',
+                        '--dry_run',
+    					dest='dryrun',
+                        action='store_true',
+                        help=('if set, the command that would be run' \
+                              ' is printed to stdout, but nothing is actually ' \
+                              'done.'))
+    parser.add_argument('--silent',
+                        dest='silent',
+                        action='store_true',
+                        help=('if set, disables sending text when run' \
+                              ' completes; also disables user prompt for' \
+                              ' email password.'))
+    args = parser.parse_args()
+
+    t0 = datetime.datetime.now()
+
+    if args.silent is False:
+        passwd = send_TWH_txt.get_outgoing_mail_password()
+
+    logfile = t0.strftime('TWH_opt_%Y-%m-%dT%H%M%S.log')
+    run_dir = os.getcwd()
+    cmd_str = "./saprcnov-LRU_paper_fwd_main.exe ./{runfile} > {logfile} 2>&1\n".format(logfile=logfile, runfile=args.fname_run_file)
+    sys.stdout.write("====================\n"
+                     "starting STEM\n"
+                     "run directory: {pwd}\n"
+                     "run file: {run_file}\n"
+                     "log file: {logfile_fname}\n"
+                     "cmd: {cmd}"
+                     "====================\n".format(pwd=os.getcwd(),
+                                                     run_file = args.fname_run_file,
+                                                     logfile_fname=logfile,
+                                                     cmd=cmd_str))
+    sys.stdout.flush()
+
+    if args.dryrun is False:
+        if os.path.exists(args.fname_run_file):
+            result = os.system(cmd_str)
+        else:
+            print('Run file does not exist - exiting now.  STEM did not run.')
+            sys.exit(0)
+
+    if (args.silent is False) and (passwd is not None):
+        sys.stdout.write('STEM finished. Sending message to Tim.\n')
+        sys.stdout.flush()
+        msg = "STEM finished (began {t0_str})".format(
+            t0_str=t0.strftime("%d %b %Y %H:%M:%S"))
+        send_TWH_txt.send_vtext_gmail(passwd,
+                                      msg_txt=msg)

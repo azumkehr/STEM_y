@@ -1,0 +1,232 @@
+# Timothy W. Hilton's attempt to compile STEM on UC Merced Engineering cluster
+
+SHELL=/bin/sh
+
+# The serial Portland Group compiler
+FC=mpif90 -f90=pgfortran
+LD=mpif90 -f90=pgfortran
+
+# The parallel (mpi) Portland Group compiler
+PFC=mpif90 -f90=pgfortran
+PLD=mpif90 -f90=pgfortran
+
+# the "root" directory for stem, containing the src and run directories
+STEMROOTDIR=$(PWD)
+#the directory containing the stem sources
+STEMSRCDIR=$(STEMROOTDIR)/
+#the directory in which to place the stem executables
+STEMRUNDIR=$(STEMROOTDIR)/
+#STEMRUNDIR=$(HOME)
+#the directory containing all the local libraries, sources, etc.
+ROOTDIR=$(HOME)
+
+# The Vis5D home directory
+V5DHOME=/usr/local/vis5d-5.2
+
+APINCL=-I$(ROOTDIR)/local/include
+APILIB= -L$(ROOTDIR)/local/lib -lioapi -lnetcdf
+
+# ---- Include Directory ----
+DIRINCL=$(STEMSRCDIR)/Include
+# The Stem Common Blocks and other Things to Include
+STEMINCL=-I$(DIRINCL) -I$(STEMSRCDIR)/Tuvsub
+FFLAGS   = -c -O $(APINCL) $(STEMINCL)
+PFFLAGS  = -c -O $(APINCL) $(STEMINCL)
+LDFLAGS  = -O -g77libs
+PLDFLAGS = -O -g77libs 
+
+# use debugging compiler and linker flags if debug target specified
+debug:FFLAGS  += -g
+debug:PFFLAGS  += -g
+debug:LDFLAGS  += -g
+debug:PLDFLAGS += -g
+ 
+MATHLIB= -llapack -lblas
+
+CMDOPT = $(STEMRUNDIR)/saprcnov-LRU_paper_fwd_main.exe
+CMDFUN = $(STEMRUNDIR)/saprcnov-LRU_paper_fun.exe
+
+all:  $(CMDFUN) $(CMDOPT)
+debug: all
+
+#  ---- DRIVER Files ---- 
+DIRDRV=Drivers
+SRCDRVFUN=  aq_driver_function.f  
+OBJDRVFUN=  aq_driver_function.o 
+SRCDRVOPT=  aq_driver_opt.f  
+OBJDRVOPT=  aq_driver_opt.o 
+
+
+# ---- Transport Files ----
+DIRTRAN=$(STEMSRCDIR)/Transport
+SRCTRAN= advdiff_1d_finitediff_conc.f90 advdiff_1d_finitediff_mf_em.f90 \
+	 advdiff_1d_finitevol_conc.f90 cartesian2sigma.f90
+OBJTRAN= advdiff_1d_finitediff_conc.o advdiff_1d_finitediff_mf_em.o \
+	 advdiff_1d_finitevol_conc.o cartesian2sigma.o
+
+# ---- Utility Files ----
+DIRUTIL=$(STEMSRCDIR)/Util
+SRCUTIL= setup.f  aq_lib.f  convert.f
+OBJUTIL= setup.o  aq_lib.o  convert.o
+
+# ---- Memory Management Files ----
+DIRMEM=$(STEMSRCDIR)/Memory
+SRCMEM=stem_memalloc.f
+OBJMEM=stem_memalloc.o
+
+# ---- Parallelization Files ----
+DIRPAR=$(STEMSRCDIR)/Paqmsg
+SRCMPI= paqmsg_util.f paqmsg_library.f paqmsg_communication.f \
+        paqmsg_stem.f 
+OBJPAR= paqmsg_util.o paqmsg_library.o paqmsg_communication.o \
+	paqmsg_stem.o 
+
+# --------------Input/Output Files -----------------------------------
+DIRIO=$(STEMSRCDIR)/IO1
+DIRIO2=$(STEMSRCDIR)/IO2
+SRCIO=input_ioapi.f output_ioapi.f checkpoints.f
+OBJIO=input_ioapi.o output_ioapi.o checkpoints.o
+
+# -------------- Gas Chemistry Files -----------------------------------
+DIRGCHEM=$(STEMSRCDIR)/GasChemistry
+SRCGCHEM=rxn_eq.f saprcnov_stem_model.f saprcnov_stem_integrator.f \
+	saprcnov_stem_linalg.f  saprcnov_stem_hessian.f \
+	rxn_adjoint.f
+OBJGCHEM=rxn_eq.o saprcnov_stem_model.o saprcnov_stem_integrator.o \
+	saprcnov_stem_linalg.o  saprcnov_stem_hessian.o \
+	rxn_adjoint.o
+HEADGCHEM=  $(DIRGCHEM)/saprcnov_stem.h $(DIRGCHEM)/saprcnov_stem_s.h    
+
+# --------------Radiation Files --------------------------------------
+DIRTUV=$(STEMSRCDIR)/Tuvsub
+SRCTUV=tuvsub.f
+OBJTUV=tuvsub.o
+
+
+# --------------Optimization Files -----------------------------------
+DIROPT=$(STEMSRCDIR)/Optimization
+SRCOPT=setulb.f 
+OBJOPT=setulb.o
+
+
+# -------------- All Objects ------------------------
+OBJ =  $(OBJLIB) $(OBJPAR) $(OBJTRAN) $(OBJIO) \
+	$(OBJTUV) $(OBJGCHEM) $(OBJMEM) $(OBJUTIL) \
+	$(OBJOPT)
+
+$(CMDFUN):  $(OBJ) $(OBJDRVFUN) $(DIRINCL)/aqms.param 
+	$(PLD) $(PLDFLAGS) -o $(CMDFUN) $(OBJ) $(OBJDRVFUN)  \
+	$(APILIB) $(MATHLIB)
+
+$(CMDOPT):  $(OBJ) $(OBJDRVOPT) $(DIRINCL)/aqms.param 
+	$(PLD) $(PLDFLAGS) -o $(CMDOPT) $(OBJ) $(OBJDRVOPT)  \
+	$(APILIB) $(MATHLIB)
+
+f.o:
+	$(FC) $(FFLAGS) $(APINCL) $<
+
+f90.o:
+	$(FC) $(FFLAGS) $(APINCL) $<
+
+# --------------Driver Files --------------------------------------
+aq_driver_function.o:$(DIRDRV)/aq_driver_function.f $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+aq_driver_opt.o:$(DIRDRV)/aq_driver_opt.f $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+# --------------Parallelization Files --------------------------------
+paqmsg_util.o: $(DIRPAR)/paqmsg_util.f
+	$(PFC) $(PFFLAGS) $<
+
+paqmsg_library.o: $(DIRPAR)/paqmsg_library.f
+	$(PFC) $(PFFLAGS) $<
+
+paqmsg_communication.o: $(DIRPAR)/paqmsg_communication.f
+	$(PFC) $(PFFLAGS) $<
+
+paqmsg_stem.o: $(DIRPAR)/paqmsg_stem.f
+	$(PFC) $(PFFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# -------------- Utility Files --------------------------------------
+aq_lib.o: $(DIRUTIL)/aq_lib.f $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+setup.o: $(DIRUTIL)/setup.f $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+convert.o: $(DIRUTIL)/convert.f $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# --------------Transport Files --------------------------------------
+advdiff_1d_finitediff_conc.o: $(DIRTRAN)/advdiff_1d_finitediff_conc.f90 \
+	$(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+advdiff_1d_finitevol_conc.o: $(DIRTRAN)/advdiff_1d_finitevol_conc.f90 \
+	$(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+advdiff_1d_finitediff_mf_em.o: $(DIRTRAN)/advdiff_1d_finitediff_mf_em.f90 \
+	$(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+
+cartesian2sigma.o: $(DIRTRAN)/cartesian2sigma.f90 $(DIRINCL)/aqms.param 
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# -------------- Gas-Phase Chemistry Files -----------------------------------
+rxn_eq.o:  $(DIRGCHEM)/rxn_eq.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+
+saprcnov_stem_model.o: $(DIRGCHEM)/saprcnov_stem_model.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+
+saprcnov_stem_integrator.o: $(DIRGCHEM)/saprcnov_stem_integrator.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+
+saprcnov_stem_linalg.o: $(DIRGCHEM)/saprcnov_stem_linalg.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+
+saprcnov_stem_hessian.o: $(DIRGCHEM)/saprcnov_stem_hessian.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+
+rxn_adjoint.o:  $(DIRGCHEM)/rxn_adjoint.f $(HEADGCHEM)
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# ------------ Memory Management Files --------------------------------
+stem_memalloc.o: $(DIRMEM)/stem_memalloc.f
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# -------------- Radiation Files --------------------------------------
+tuvsub.o: $(DIRTUV)/tuvsub.f $(DIRTUV)/tuv.params
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+
+# --------------Input/Output Files --------------------------------------
+checkpoints.o: $(DIRIO)/checkpoints.f
+	$(FC) $(FFLAGS) $<
+
+input_ioapi.o: $(DIRIO2)/input_ioapi.f
+	$(FC) $(FFLAGS) $<
+
+output_ioapi.o: $(DIRIO)/output_ioapi.f
+	$(FC) $(FFLAGS) $<
+# ------------------------------------------------------------------------
+
+# --------------Optimization Files -----------------------------------
+setulb.o: $(DIROPT)/setulb.f
+	$(FC) $(FFLAGS) $<
+
+clean:
+	rm -f $(OBJ) $(OBJDRV) $(LIBS)

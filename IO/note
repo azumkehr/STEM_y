@@ -1,0 +1,16 @@
+
+Mar16, 2004 Amir email
+
+---------------------------------------------------------------
+	q has been divided by 100 twice. (so ioapi part has been 
+        changed.)  Mar 11, 2005
+---------------------------------------------------------------
+
+>c  ! Convert emissions from molecules/cm3 to molefraction
+>c        do ispc = 1, num
+>c           ! From mlc/cm^2 to parts m
+>c          q(1:ix,1:iy,ispc) = q(1:ix,1:iy,ispc)/
+>c     &                      sg1(1:ix,1:iy,1,iair)/100
+>c          em(1:ix,1:iy,1:iz,ispc) =  em(1:ix,1:iy,1:iz,ispc)/
+>c     &                      sg1(1:ix,1:iy,1:iz,iair)
+

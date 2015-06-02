@@ -1,0 +1,16 @@
+'cos'  1                  # nanomol/m2/sec -> molecules/cm2/sec
+'CO2_TRACER1' 6.022E+19 
+#'cos_soilup'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_anthfromcs2'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_anthfromdms'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_anth'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_ocean'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_oceanfromcs2'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7
+#'cos_oceanfromdms'  1                  # pmol/m2/sec -> molecules/cm2/sec
+#'CO2_TRACER1'  6.023e7

@@ -1,0 +1,87 @@
+#!/bin/csh
+cat > tmp.mif <<EOF
+&aqjob
+ix=180
+iy=282
+iz=59
+ixtrn=0
+iytrn=0
+iztrn=0
+irxng=1
+&end
+&aqaero
+nbin=0
+&end
+&aqtime
+istday=2015 05 04
+isthr=0
+iperiod=12432
+iprnt=1
+dt=900
+&end
+&aqgrid
+flagx=1.0
+flagy=1.0
+flagz=1.9
+dxc=4000.
+dyc=4000.
+dht=22379.39
+baseh=40.
+&end
+&aqinpf
+specif= "speci.saprc99"
+gmechf= "saprc99.dat"
+spec_emf="em_az.dat"
+spec_vgf="vg_spec.saprc99"
+&end
+&aqopenf
+ouname="CO2_TRACER1"
+izout=59
+iscrat=6
+outjname='J-NO2','J-O3D','J-H2O2','J-HONO-NO','J-HNO3','J-HCHO-R','J-HCHO-M','J-CCHO',
+ 'J-ACET'
+jzout=59
+jprnt=1
+outaeronam='BC','OC','DUST1','DUST2','SSF','SSC','OPM25','OPM10','AOE-TOTAL'
+izaero=59
+iaeroprnt=3
+&end
+&aqunit
+unit_ini=0
+unit_out=0
+unit_aero=2
+&end
+&aqmet
+GRIDSYS="AQMS_GRID"
+&end
+EOF
+
+mv tmp.mif aqms.mif
+#/local/vol00/skulkarn/Elliott_STEM/STEM_MM5
+setenv DOMAIN  /home/ecampbell_lab/COS/fog/wrf_topo2.nc
+setenv HEIGHT3D /home/ecampbell_lab/COS/fog/wrfheight-preprocessor_2.nc
+setenv METEO3D /home/ecampbell_lab/COS/fog/meteo3d-preprocessor_2.nc
+setenv METEO2D /home/ecampbell_lab/COS/fog/meteo2d-preprocessor_2.nc
+#setenv EMHOURLY /home/ecampbell_lab/COS/fog/surface.nc
+setenv INITF /home/ecampbell_lab/COS/fog/ic.nc
+setenv BDF /home/ecampbell_lab/COS/fog/bdv.nc
+setenv BDFV /home/ecampbell_lab/COS/fog/bdv.nc
+setenv TOPBND /home/ecampbell_lab/COS/fog/boundary.nc
+
+setenv JOUT /home/ecampbell_lab/COS/fog/output/JVS.temp.180x282-59levs-test1.nc
+setenv AEROOUT /home/ecampbell_lab/COS/fog/output/AEROS.temp.180x282-59levs-test1.nc
+setenv AQCHKP1 /home/ecampbell_lab/COS/fog/output/CHKP1.temp.180x282-59levs-test1.nc
+setenv AQRST /home/ecampbell_lab/COS/fog/output/SNOV.temp_r.180x282-59levs-test1.nc
+setenv AQOUT /home/ecampbell_lab/COS/fog/output/AQOUT-180x282-59levs-test1.nc
+#rm -f  t_obs_pred.dat
+if (-e $JOUT) rm -f $JOUT
+if (-e $AEROOUT) rm -f $AEROOUT
+if (-e $AQCHKP1) rm -f $AQCHKP1
+if (-e $AQRST) rm -f $AQRST
+if (-e $AQOUT) rm -f $AQOUT
+
+#/home/ecampbell_lab/COS/STEM_wrf_y/STEM_src_Tim -machinefile nodes -np 32 ./saprcnov-wrf_y_main.exe  >& test_STEM_test1.log
+mpirun -np 32 ./saprcnov-wrf_y_main.exe  >& Tim.log
+
+echo ZONE >> multi_test1.dat
+cat t_obs_pred.dat >> mult_test1.dat

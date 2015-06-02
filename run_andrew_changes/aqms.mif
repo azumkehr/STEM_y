@@ -1,0 +1,54 @@
+&aqjob
+ix=180
+iy=282
+iz=59
+ixtrn=0
+iytrn=0
+iztrn=0
+irxng=1
+&end
+&aqaero
+nbin=0
+&end
+&aqtime
+istday=2015 05 05
+isthr=1
+iperiod=24
+iprnt=1
+dt=900
+&end
+&aqgrid
+flagx=1.0
+flagy=1.0
+flagz=1.9
+dxc=4000.
+dyc=4000.
+dht=22379.39
+baseh=40.
+&end
+&aqinpf
+specif= "speci.saprc99"
+gmechf= "saprc99.dat"
+spec_emf="em_az.dat"
+spec_vgf="vg_spec.saprc99"
+&end
+&aqopenf
+ouname="CO2_TRACER1"
+izout=59
+iscrat=6
+outjname='J-NO2','J-O3D','J-H2O2','J-HONO-NO','J-HNO3','J-HCHO-R','J-HCHO-M','J-CCHO',
+ 'J-ACET'
+jzout=59
+jprnt=1
+outaeronam='BC','OC','DUST1','DUST2','SSF','SSC','OPM25','OPM10','AOE-TOTAL'
+izaero=59
+iaeroprnt=3
+&end
+&aqunit
+unit_ini=0
+unit_out=0
+unit_aero=2
+&end
+&aqmet
+GRIDSYS="AQMS_GRID"
+&end

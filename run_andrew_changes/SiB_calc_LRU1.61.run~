@@ -1,0 +1,122 @@
+#!/bin/csh
+
+# 2014-04-16
+# I have modified the STEM makefile so that the driver function
+# executable is now ./saprcnov-LRU_paper_fun.exe. -TWH
+# 2013-10-17
+# slightly modified version of /mnt/home10/skulkarni/StemData21Jul2013/run22levs/mabu_124x124_casa-cos_2008_2009.run
+# initial test run of locally-compiled STEM
+# I changed some of the paths for input, output, executables, etc., nothing else.
+# - TWH
+# -----------------------------------
+# 2013-11-15
+# - for testing purposes changed iperiod to 168 (from 12432) so that run duration is one week, not ~18 months
+# - changed run start to 1 June 2008 (from 1 Mar 2008) so we're more in the growing season
+cat > tmp.mif <<EOF
+&aqjob
+ix=124
+iy=124
+iz=22
+ixtrn=0
+iytrn=0
+iztrn=0
+irxng=1
+&end
+&aqaero
+nbin=0
+&end
+&aqtime
+istday=2008 07 01
+isthr=0
+iperiod=1488
+iprnt=1
+dt=900
+&end
+&aqgrid
+flagx=1.0
+flagy=1.0
+flagz=1.9
+dxc=60000.
+dyc=60000.
+dht=22379.39
+baseh=40.
+&end
+&aqinpf
+specif= "speci.saprc99"
+gmechf= "saprc99.dat"
+spec_emf="em_casa.dat"
+spec_vgf="vg_spec.saprc99"
+&end
+&aqopenf
+ouname="CO2_TRACER1"
+izout=22
+iscrat=6
+outjname='J-NO2','J-O3D','J-H2O2','J-HONO-NO','J-HNO3','J-HCHO-R','J-HCHO-M','J-CCHO',
+ 'J-ACET'
+jzout=22
+jprnt=1
+outaeronam='BC','OC','DUST1','DUST2','SSF','SSC','OPM25','OPM10','AOE-TOTAL'
+izaero=22
+iaeroprnt=3
+&end
+&aqunit
+unit_ini=0
+unit_out=0
+unit_aero=2
+&end
+&aqmet
+GRIDSYS="AQMS_GRID"
+&end
+EOF
+
+mv tmp.mif aqms.mif
+
+setenv INPUTDIR /home/ecampbell_lab/skulkarni/input/
+setenv DOMAIN  $INPUTDIR/TOPO-124x124.nc
+setenv HEIGHT3D $INPUTDIR/wrfheight-124x124-22levs.nc
+setenv METEO3D $INPUTDIR/meteo3d-124x124-22levs-2008-2009.nc
+setenv METEO2D $INPUTDIR/meteo2d-124x124-2008-2009.nc
+setenv EMHOURLY /home/ecampbell_lab/COS/Additional_Flux_Models/SiB_From_Ian_2015-03/SiB_124x124_Fplant_calc_2008JulAug.nc
+setenv INITF $INPUTDIR/ic-124x124-cos-fixed-.45ppb_2008.nc
+setenv BDF $INPUTDIR/bdv-124x124-22levs-cos-fixed-.45ppb_2008_2009.nc
+setenv BDFV $INPUTDIR/bdv-124x124-22levs-cos-fixed-.45ppb_2008_2009.nc
+setenv TOPBND $INPUTDIR/upbound-124x124-cos-fixed-.45ppb_2008_2009.nc
+
+#setenv DEPVEL /local/vol00/skulkarn/Elliott_STEM/STEM_MM5/drydep.21Layer-H.m97x62-c3.nc
+#setenv EMISSION /local/vol00/skulkarn/Elliott_STEM/STEM_MM5/emis-jeff-gregpoint.m97x62-21Layer.nc
+#setenv EMDAILY $INPUTDIR/surfem-124x124-kettle-soil-cos_2008_2009
+#setenv BIOGENIC /local/vol00/skulkarn/Elliott_STEM/STEM_MM5/biogenic.icartt-20layer-H.m97x62.nc
+#setenv DOBSON /local/vol00/skulkarn/Elliott_STEM/STEM_MM5/dobson-2004Jun-Aug.m97x62.nc
+#setenv LIGHTNING /local/vol00/skulkarn/Elliott_STEM/STEM_MM5/NLDN_LNOX.21layer-H.m97x62.nc
+
+#rm -f ../output/*
+setenv JOUT ./output/JVS.temp.124x124-22levs-SiBcalc_fCOS_LRU1.61.nc
+setenv AEROOUT ./output/AEROS.temp.124x124-22levs-SiBcalc_fCOS_LRU1.61.nc
+setenv AQCHKP1 ./output/CHKP1.temp.124x124-22levs-SiBcalc_fCOS_LRU1.61.nc
+setenv AQRST ./output/SNOV.temp_r.124x124-22levs-SiBcalc_fCOS_LRU1.61.nc
+setenv AQOUT ./output/AQOUT-124x124-22levs-SiBcalc_fCOS_LRU1.61.nc
+if (-e t_obs_pred.dat) rm -fv t_obs_pred.dat
+if (-e $JOUT) rm -fv $JOUT
+if (-e $AEROOUT) rm -fv $AEROOUT
+if (-e $AQCHKP1) rm -fv $AQCHKP1
+if (-e $AQRST) rm -fv $AQRST
+if (-e $AQOUT) rm -fv $AQOUT
+
+## --------------------------------------------------
+## now run STEM
+
+## Tim's compiled executable
+## run in debugger
+## this syntax lifted from http://www.pgroup.com/lit/articles/insider/v1n1a3.htm
+#pgdbg -text  -mpi:$HOME/local/bin/mpirun -machinefile nodes -np 8 ./saprcnov-fun.exe
+## run without debugger
+$HOME/local/bin/mpirun -np 32 ./saprcnov-LRU_paper_fun.exe
+
+## --------------------------------------------------
+
+echo ZONE >> multi.dat
+## if t_obs_pred.dat exists echo to multi.dat
+if ( -e t_obs_pred.dat ) then
+    echo "t_obs_pred.dat exists"
+    cat t_obs_pred.dat >> multi.dat
+endif

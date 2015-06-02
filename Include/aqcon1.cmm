@@ -1,0 +1,17 @@
+cc    aqcon1.comm  ***************
+c
+      real  hencof,dgas,eqkcof,poval,rmw,accom   
+      common /aqcon1/hencof(mxspg,2),dgas(mxspg),eqkcof(mxspg,3,3),
+     1      poval(8,mxspg),rmw(mxspg),accom(mxspg)
+c
+      real  daero, aero_num  
+      common /aqcon2/daero(1000),aero_num(1000)
+c  
+      integer  liqnum,
+     1 icharg,l1to2,l2to1,ion2sp,
+     2 isp2in,mgas,mliq,msoliq,
+     3 mg2s,numl,izsr,nhion,nohion,nbin     
+      common /iaqcon2/ liqnum(mxspg),
+     1 icharg(mxspg,3),l1to2(1000,2),l2to1(mxspg,3),ion2sp(30,2,2),
+     2 isp2in(mxspg,3),mgas(mxspg),mliq(mxspg),msoliq(mxspg),
+     3 mg2s(mxspg),numl(3,4),izsr(4,2,mxspg),nhion,nohion,nbin

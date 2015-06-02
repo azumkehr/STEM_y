@@ -1,0 +1,8 @@
+c---+----1----+----2----+----3----+----4----+----5----+----6----+----7-----
+cc    aqcon2.cmm   ***
+      double precision zmu,zadd,zz2,qkm,cation,anion
+      common /aqcon3/zmu(900),zadd(900),zz2(900),qkm(30,30),cation(30),
+     1  anion(30)
+c
+      integer lpa2sp,icat,iani,ncat,nani
+      common /iaqcon3/lpa2sp(30,30,2),icat(30),iani(30),ncat,nani

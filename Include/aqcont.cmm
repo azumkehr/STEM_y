@@ -1,0 +1,10 @@
+cc    aqcont.comm  ***************
+c
+      integer iprnt,iem,iqm,ivg,ibd,ifreq2,ifreq3,
+     1       nem,nqm,nvg,nbd,nvar2,nvar3,iscrat,jprnt,iaeroprnt
+      common /aqcont/iprnt,iem,iqm,ivg,ibd,ifreq2(3),ifreq3(3),
+     1   nem,nqm,nvg,nbd,nvar2(3),nvar3(3),iscrat,jprnt,iaeroprnt
+c
+      integer unit_ini,unit_em,unit_qm,unit_bd,unit_out,unit_aero
+      common /aq_unit/unit_ini,unit_em,unit_qm,unit_bd,unit_out,
+     1 unit_aero               ! output unit for aerosol

@@ -1,0 +1,672 @@
+!------------------------------------------------
+! Module Name: VIS5D_DISPLAY_CLASS
+! Description: Writes Vis5d files based on values of STEM 
+!               Modified for use on old Stem
+!
+! Developed on: 12/14/02
+!               01/28/03
+!
+!
+! Usage Instructions: 
+!
+! Author: Adrian Sandu
+!         C Belwal
+!-----------------------------------------------
+	module VIS5D_DISPLAY_CLASS
+
+	CONTAINS
+
+	!------------------------------------------------
+        ! Subroutine Name: CREATE_VIS5D_FILE 
+        ! Description: Creates the Vis5D file 
+        !
+        ! Developed on: 12/18/02
+        !
+        ! Usage Instructions:
+        !
+        !
+        ! Author: Y Tang
+        !	  Adrian Sandu
+        !         C Belwal
+        !-----------------------------------------------
+	subroutine CREATE_VIS5D_FILE(latitude,longitude,orography,
+     &		gridHeight,Nx,Ny,Nz,filename,stepHour,
+     &		Nospec_transport,totalTimeSteps,startDate,startHour)
+
+		!- Create Vis5d File and enter toptgraphy data
+		!use domain ! Get value of topo
+		use species
+		use vis5d
+		!use configModule
+
+		IMPLICIT NONE
+		
+		include 'PARMS3.EXT'      ! i/o API
+      		include 'FDESC3.EXT'      ! i/o API
+      		include 'IODECL3.EXT'     ! i/o API
+      		include 'v5df.h'
+
+
+		! For DOMAIN
+		integer::Nx,Ny,Nz,Nospec_transport
+           	real::Longitude(Nx,Ny),Latitude(Nx,Ny) 
+     &     		,Orography(Nx,Ny),gridHeight(Nx,Ny,Nz)
+
+		 integer::TOTAL_METEO3D_VAR
+		 parameter(TOTAL_METEO3D_VAR=11)
+
+        integer::stepHour, totalTimeSteps,startDate(3),startHour
+	character*80::filename
+
+
+	character(len=2)::Meteo3DName(11)=(/'U ','V ','W ','T ','P '
+     &	,'KV','KH','WV','CW','RW','PV'/)
+
+	!     Local vars
+        integer::n,iflag,ierr
+        integer::j,k,l
+	integer::lreal
+
+        print *, 'inside creat_vis5d_file'
+
+	!-- Allocate vars
+	allocate (xlon(Nx,Ny),STAT=ierr)
+		call AllocErrorCheck(ierr,"xlon")
+	allocate (xlat(Nx,Ny),STAT=ierr)
+                call AllocErrorCheck(ierr,"xlat")
+	allocate (topo(Nx,Ny),STAT=ierr)
+                call AllocErrorCheck(ierr,"topo")
+	allocate (zheight(Nx,Ny,Nz),STAT=ierr)
+                call AllocErrorCheck(ierr,"zheight")
+        print *, 'inside creat_vis5d_file, after allocation'
+
+      !  THE FOLLOWING VARIABLES DESCRIBE THE DATASET TO BE CONVERTED.  YOU
+      !  MUST INITIALIZE ALL THESE VARIABLES WITH VALUES FROM YOUR FILE OR
+      !  ASSIGN SUITABLE CONSTANTS.  SEE THE README FILE FOR DESCRIPTIONS
+      !  OF THESE VARIABLES.
+
+	 imax=Nx
+         jmax=Ny
+         kmax=Nz
+
+        TOTAL_VARIABLES=Nospec_transport + TOTAL_METEO3D_VAR
+
+
+      !    initialize the variables to missing values
+
+       paiv=atan(1.)/45
+
+
+        !-- Assign Control variable
+	lmet=TOTAL_METEO3D_VAR
+        lreal=Nospec_transport
+        !begdate=2001070
+        !******* IT IS FOR 2001/03/xx only *****************
+        begdate=2001059+startDate(3)
+        !******* CHAI, TIANFENG, 06/30/03  *****************
+        begtime=startHour
+        tstep=stepHour
+        numtimes=totalTimeSteps !2 !Total time steps
+        kout=Nz-1
+        compressmode=1
+
+	 !----- Assign values
+        xlat(1:Nx,1:Ny) = latitude(1:Nx,1:Ny)
+        xlon(1:Nx,1:Ny) = longitude(1:Nx,1:Ny)
+        topo(1:Nx,1:Ny) = orography(1:Nx,1:Ny)
+
+	! print*,"In CREATE_VIS5d = ",Nx,Ny,Nz
+
+        ! NOTE --- vgtop3d and vglvs3d come from DESC3(METEO3D)
+      if (.not. DESC3('METEO3D') ) then   ! get grid information from meteorological 3d file to fill the description of 3d chemical output
+        print*, 'Error getting info from METEO3D'
+        stop
+      endif
+      do i=1,imax
+       do j=1,jmax
+        do k=1,kout
+        zheight(i,j,k)=topo(i,j)+(vgtop3d-topo(i,j))*vglvs3d(k)  ! computing
+     1   /vgtop3d                                          ! vertical altitude
+        enddo
+       enddo
+      enddo
+
+      vglvs(1:kout) = vglvs3d(1:kout)
+
+      ddx=sngl(xcell3d)
+      dllat=ddx/111120.    ! compute how many degrees per grid
+      dllon=dllat
+      xxstart=ddx*((1.-ipmax)/2.+ipoff)
+      yystart=ddx*((1.-jpmax)/2.+jpoff)
+      plat=sngl(P_BET3D)
+      plon=sngl(P_ALP3D)
+
+      wlon=xlon(1,jmax/2)        ! use middle point
+      elon=xlon(imax,jmax/2)
+
+      slat=xlat(imax/2,1)
+      nlat=xlat(imax/2,jmax)
+
+      slat=slat-dllat  ! extend one grid
+      wlon=wlon-dllon
+      elon=elon+dllon
+
+      nllat=int((nlat-slat)/dllat)+1  ! grid numbers in Vis5d
+      nllon=int((elon-wlon)/dllon)+1
+      !print*,'===>llgrid:',nllat,nllon,dllat,dllon
+      !print*,'===>llgrid:',wlon,elon,slat,nlat
+      !print*,'Plat,plon,xxstart,yystart=',plat,plon,xxstart,yystart
+
+      allocate ( gg(nllat,nllon,kout),STAT=ierr)
+      call AllocErrorCheck(ierr,"gg")
+
+      nr=nllat
+      nc=nllon
+      numvars=lreal+lmet
+      do i=1,numvars
+       nl(i)=kout            !every variables have same layes
+      enddo
+
+      do L=1,lmet
+       varname(L)=Meteo3DName(L)
+      enddo
+      do L=1,lreal
+       varname(lmet+L)=SpcName(L)
+       if(varname(lmet+L).eq.'H2SO4') varname(lmet+L)='Sulfate'
+      enddo
+
+      dates(1)= mod(begdate,100000)  ! convert to YYDDD
+      times(1)= begtime*10000        ! convert to HHMMSS
+      tstep=tstep*10000              !  hhmmss
+
+      do i=2,numtimes
+       times(i)=times(i-1)+tstep
+       dates(i)=dates(i-1)
+       if(times(i).ge.240000) then
+        times(i)=times(i)-240000
+        dates(i)=dates(i)+1
+       endif
+       ! print*,'dates=',dates(i),' times=',times(i)
+      enddo
+
+
+      projection= 1       ! latitude-longtitude grid
+      proj_args(1)=nlat
+      proj_args(2)=-wlon    ! North America is +ve
+      proj_args(3)=dllat
+      proj_args(4)=dllon
+
+      vertical=2           !unequally spaced levels in km
+      do k=1,kout
+       vert_args(k) = vglvs3d(k)/1000.  ! convert to km
+      enddo
+
+
+	!  IF YOU FAIL TO INITIALIZE SOME VARIABLES, THEY WILL BE DETECTED AND
+	!-------------     Create the v5d file.
+      n=v5dcreate( filename, numtimes, numvars, nr, nc, nl,
+     *               varname, times, dates, compressmode,
+     *               projection, proj_args, vertical, vert_args )
+      if (n .eq. 0) then
+         print*,'create error for vis5d file '//filename
+         stop
+      endif
+
+      !print*,'Created VIS5d'
+
+	!  YOU MAY CALL v5dsetlowlev OR v5dsetunits HERE.  SEE README FILE.
+      do L=1,lmet
+       if(Meteo3DName(L).eq.'U '.or.Meteo3DName(L).eq.'V '.or.
+     1   Meteo3DName(L).eq.'W ') then
+        call v5dsetunits(L,'m/s    ')
+       else if(Meteo3DName(L).eq.'T ') then
+        call v5dsetunits(L,'K    ')
+       else
+        call v5dsetunits(L,'Kg/Kg    ')
+       endif
+      enddo
+
+      do L=1,lreal
+       call v5dsetunits(L+lmet,'mole-frac.   ')
+      enddo
+
+      print*,'OK for setting units'
+
+
+	end subroutine CREATE_VIS5D_FILE
+
+
+	!------------------------------------------------
+        ! Subroutine Name: WRITE_TO_VIS5D 
+        ! Description: Writes data to the Vis5D File 
+        !
+        ! Developed on: 12/18/02
+        !
+        ! Usage Instructions:
+        !
+        !
+        ! Author: Y Tang 
+        !	  Adrian Sandu
+        !         C Belwal
+        !-----------------------------------------------
+       subroutine WRITE_TO_VIS5D(latitude,longitude,
+     &		orography,
+     &		gridHeight, 
+     &		U,V,W,KV,KH,Pressure, Temperature, 
+     &		waterVaporMixingRatio, 
+     &		cloudWaterContent, 
+     &		rainWaterContent, potentialVortex, 
+     &		Concentration, iair,
+     &		Nx,Ny,Nz,Nospec,timestep)
+
+	!use domain
+	!use meteo3d
+	!use initf
+	!use aqindx !use species
+	!use configModule
+	  use vis5d
+	include 'v5df.h'
+
+
+	!----------------------------- Define Function interface vars
+		integer,intent(in)::Nx,Ny,Nz
+                real::Longitude(Nx,Ny),Latitude(Nx,Ny)
+     &                 ,Orography(Nx,Ny),gridHeight(Nx,Ny,Nz)
+		integer::timestep	
+
+		real::U(Nx,Ny,Nz)
+                real::V(Nx,Ny,Nz)
+                real::W(Nx,Ny,Nz)
+                real::Temperature(Nx,Ny,Nz)
+                real::KH(Nx,Ny,Nz)
+                real::KV(Nx,Ny,Nz)
+                real::Pressure(Nx,Ny,Nz)
+                real::waterVaporMixingRatio(Nx,Ny,Nz)
+                real::cloudWaterContent(Nx,Ny,Nz)
+                real::rainWaterContent(Nx,Ny,Nz)
+                real::potentialVortex(Nx,Ny,Nz)
+		real::Concentration(Nx,Ny,Nz,Nospec)
+
+		integer::iAIR
+
+
+		parameter(TOTAL_METEO3D_VAR=11)
+                parameter(im_U=1,im_V=2,im_W=3,im_T=4,im_P=5,im_KV=6,
+     &			im_Kh=7,im_wvapor=8)
+                parameter(im_cwater=9,im_rwater=10,im_PV=11)
+
+	!---------------------------------------------------------------
+
+
+	real::ALLMETEO3D(Nx,Ny,Nz,TOTAL_METEO3D_VAR)
+
+
+
+	!IMPLICIT NONE !Temp Disabled
+
+       real work(Nx,Ny,Nz), work2(Nx,Ny,Nz),
+     &  swork(Nz),swork2(Nz),sheight(Nz)
+       real vt2ds(4,4)
+ 
+
+	 !integer iargc,nvar
+         !     Local vars
+        integer n,iflag
+        integer::i1,i2,i3
+        real::vglvs3d(Nz)
+        integer::k,j,l
+        integer::ndfixx
+        real::u1,v1,ws,rams_wd,wd,mjv
+        !integer::mjj,mj,glat,glon !ENABLE LATER
+ 
+        ALLMETEO3D(:,:,:,im_U) = U(:,:,:)
+	ALLMETEO3D(:,:,:,im_V) = V(:,:,:)
+        ALLMETEO3D(:,:,:,im_W) = W(:,:,:)
+        ALLMETEO3D(:,:,:,im_KV) =KV(:,:,:)
+        ALLMETEO3D(:,:,:,im_KH) = KH(:,:,:)
+        ALLMETEO3D(:,:,:,im_P) = Pressure(:,:,:)
+        ALLMETEO3D(:,:,:,im_T) = Temperature(:,:,:)
+        ALLMETEO3D(:,:,:,im_wvapor) = waterVaporMixingRatio(:,:,:)
+        ALLMETEO3D(:,:,:,im_cwater) =cloudWaterContent(:,:,:)
+        ALLMETEO3D(:,:,:,im_rwater) = rainWaterContent(:,:,:)
+        ALLMETEO3D(:,:,:,im_PV)=potentialVortex(:,:,:)
+
+
+	vglvs3d(1:Nz)=vglvs(1:Nz) !Since we r not opening METEO3D here
+
+	!Separate this part
+!      do n=1,numtimes !#L1
+	n = timestep
+
+       ndfixx=begdate/100000       ! the first two digit of year
+       print*,'WRITE Vis5D file: date=',dates(n),'  time=',times(n)
+       
+       do L=1,TOTAL_VARIABLES !numvars !#L2
+        ! print*,' Process species ',varname(L)
+	if(L.le.lmet) then       ! #If-0 meteorological variables
+	 
+	 if(varname(L).eq.'U '.or.varname(L).eq.'V ') then !#If-1
+		work(1:Nx,1:Ny,1:Nz) = ALLMETEO3D(1:Nx,1:Ny,1:Nz,im_U) 
+		work2(1:Nx,1:Ny,1:Nz) = ALLMETEO3D(1:Nx,1:Ny,1:Nz,im_V) 
+          
+	  do k=1,kmax !#L3
+ 	   do i=1,imax   !#L4              ! convert U,V to latitude, Longitude Coordinate
+            do j=1,jmax  !#L5
+	    u1=work(i,j,k)
+	    v1=work2(i,j,k)
+	    ws=sqrt(u1*u1+v1*v1)
+	    if(u1.eq.0) then   ! calculate wind direction in RAMS coordinate  
+  	     if(v1.lt.0) then
+ 	      rams_wd=0.
+	     else
+	      rams_wd=180. 
+	     endif 
+	    else 
+	     rams_wd=atan(v1/u1)/paiv
+	     if(u1.lt.0) then
+	       rams_wd=90.-rams_wd
+	     else
+	       rams_wd=270.-rams_wd 
+	     endif
+	    endif              
+	    wd=rams_wd-asin(radius*cos(xlat(nint(x),nint(y+1))*paiv)
+     1	    *paiv*(xlon(nint(x),nint(y+1))-xlon(nint(x),nint(y)))     ! wd in geographical coordinate
+     2       /ddx)/paiv
+	    if(wd.lt.0) wd=wd+360.  
+             u1=-ws*sin(wd*paiv)
+             v1=-ws*cos(wd*paiv)
+	    if(varname(L).eq.'U') then
+	     work(i,j,k)=u1
+	    else
+	     work(i,j,k)=v1
+	    endif 
+            enddo !#L5 
+	   enddo  !#L4
+	  enddo   !#L3 
+!	  L = L + 1 !IMP: Since we have calculated for 2 vars here
+
+	 else ! #If-1other meteorological Species
+	  
+		work(1:Nx,1:Ny,1:Nz) = ALLMETEO3D(1:Nx,1:Ny,1:Nz,L)
+	        ! print*," L = ",L, work(1,1,1)
+	 endif !#If-1
+	
+        else if(L.gt.lmet) then   ! #If-0 Concentration Species
+
+
+	do i1=1,Nx
+	 do i2=1,Ny
+	  do i3=1,Nz
+		work(i1,i2,i3) = Concentration(i1,i2,i3,L-lmet) * 1e9 
+!     &             /Concentration(i1,i2,i3,iAIR)) * 1e9 
+	 enddo
+	enddo
+       enddo
+
+       ! print*,"Con = ",work(1,1,1)
+
+       endif ! #If-0	
+	
+	! print*, 'READ DATA OK'
+	
+	do i=1,imax          ! vertical interpolation
+	 do j=1,jmax
+	  swork(1:kout)= work(i,j,1:kout) 
+	  sheight(1:kout)=zheight(i,j,1:kout)
+	  call ztint(kout,swork,sheight,kout,swork2,vglvs3d)
+	  work(i,j,1:kout) = swork2(1:kout)
+	 enddo
+	enddo  
+c	print*,' Vertical interpolation OK'
+
+        do k=1,kout !#L3        ! horizontal interpolation
+	 mjv=nllat
+         mj=0
+         do mjj=1,nllat !#L4
+          mj=mj+1
+          glat=slat+(mj-1)*dllat
+          mi=0
+          do mii=1,nllon !#L5
+           mi=mi+1
+           glon=wlon+(mi-1)*dllon
+           call ramsll_xy(glat,glon,plat,plon,x,y)
+           x=(x-xxstart)/ddx+1
+           y=(y-yystart)/ddx+1
+           xnni=amod(x,1.)+2.
+           ynni=amod(y,1.)+2.
+           nni=int(x)
+           nnj=int(y)
+
+           do j=1,4 !#L6
+            jm=nnj+j-2
+            do i=1,4 !#L7
+              vt2ds(i,j)=1.e30
+               im=nni+i-2
+               if(im.ge.1.and.im.le.imax.and.jm.ge.1.and.jm.le.jmax)  
+     1             vt2ds(i,j)=work(im,jm,k)
+            enddo !#L7
+          enddo !#L6
+          call gdtost(vt2ds,4,4,xnni,ynni,gg(mjv,mi,k))
+          if(gg(mjv,mi,k).gt.1e9) gg(mjv,mi,k) = missing
+	  !if(L.gt.3) gg(mjv,mi,k) = amax1(gg(mjv,mi,k),0.)
+          !CHANGED by CHAI, TIANFENG, 6/30/03
+	  	  
+c          print*,mjj,mj,mjv,mii,mi,nni,nnj,gg(mjv,mi,k)
+
+          enddo !#L5
+         mjv=mjv-1
+        enddo !#L4
+        enddo !#L3
+
+	!print*,' Horizontal interpolation OK'
+        iflag=v5dwrite(n,L,gg)
+        if(iflag.eq.0) then
+	 print*,'Write error VIS5D at n=',n 
+	 call exit(1)        !error
+	endif
+	!print*,'WRITE Vis5D OK'
+	
+	enddo !#L2
+
+	print*,'GRACEFUL EXIT FROM Vis5D_Write'
+!	call CLOSE_VIS5D_FILE
+!	STOP
+	end subroutine WRITE_TO_VIS5D
+
+
+	!------------------------------------------------
+        ! Subroutine Name: CLOSE_VIS5D_FILE 
+        ! Description: Closes the Vis5D file 
+        !
+        ! Developed on: 12/18/02
+        !
+        ! Usage Instructions:
+        !
+        !
+        ! Author: Y Tang
+	!	  Adrian Sandu
+        !         C Belwal
+        !-----------------------------------------------
+	subroutine CLOSE_VIS5D_FILE()       
+	!     close the v5d file and exit
+	  use vis5d
+      	  deallocate (gg)
+      
+	  iflag = v5dclose()
+
+      	  if (iflag .eq. 0) then
+	   print*,"Error Closing Vis5d file"
+           call exit(1)
+          !else
+          ! call exit(0)
+          endif
+	end subroutine CLOSE_VIS5D_FILE 
+
+	!------------------------------------------------
+        ! Subroutine Name: ztint 
+        ! Description: ??? 
+        !
+        ! Developed on: 12/18/02
+        ! 
+        ! Usage Instructions:
+        !
+        !
+        ! Author: Y Tang
+        !-----------------------------------------------
+      subroutine ztint(nzz1,vctra,eleva,nzz2,vctrb,elevb)
+	!-----------------------------------------------------------------------
+	! subroutine che interpola i valori contenuti nel vettore vctra(nzz1),
+	! corrispondenti alle quote eleva(nzz1) sul vettore vecrtb(nzz2),
+	! corrispondente alle quote elevb(nzz2) 
+	!-----------------------------------------------------------------------
+      real vctra(*),vctrb(*),eleva(*),elevb(*)
+      real missing
+      data missing/1.e35/
+      do k=1,nzz2
+
+! la quota cercata e' sotto la piu' bassa
+! estrapolazione del valore
+!
+        if(elevb(k).lt.eleva(1))then
+!         wt=(elevb(k)-eleva(1))/(eleva(2)-eleva(1))
+!         vctrb(k)=vctra(1)+(vctra(2)-vctra(1))*wt    
+         vctrb(k)=missing
+!
+! la quota cercata e' sopra la piu' alta
+! estrapolazione del valore
+!
+        elseif(elevb(k).gt.eleva(nzz1))then
+!         wt=(elevb(k)-eleva(nzz1))/(eleva(nzz1-1)-eleva(nzz1))
+!         vctrb(k)=vctra(nzz1)+(vctra(nzz1-1)-vctra(nzz1))*wt
+          vctrb(k)=missing
+!
+! la quota cercata e' compresa fra le quote minima e massima
+! interpolazione tra i valori corrispondenti alle quote piu' prossime
+!
+        else
+          do l=1,nzz1-1
+            if(elevb(k).ge.eleva(l).and.elevb(k).le.eleva(l+1))then
+              wt=(elevb(k)-eleva(l))/(eleva(l+1)-eleva(l))
+              vctrb(k)=vctra(l)+(vctra(l+1)-vctra(l))*wt    
+            endif
+          enddo
+        endif
+      enddo
+      
+	return
+      end
+
+
+	!------------------------------------------------
+        ! Subroutine Name: ramsll_xy 
+        ! Description: Handles all variable allocation for DRIVER variabled
+        !
+        ! Developed on: 12/18/02
+        !
+        ! Usage Instructions:
+        !
+        !
+        ! Author: Adrian Sandu
+        !         C Belwal
+        !-----------------------------------------------
+      subroutine ramsll_xy(qlat,qlon,polelat,polelon,x,y)
+      parameter (erad=6.367e6,erad2=1.2734e7,pi180=3.14159265/180.)
+
+! Evaluate sine and cosine of latitude and longitude of pole point p and
+! input point q.
+
+      sinplat = sin(polelat * pi180)
+      cosplat = cos(polelat * pi180)
+      sinplon = sin(polelon * pi180)
+      cosplon = cos(polelon * pi180)
+
+      sinqlat = sin(qlat * pi180)
+      cosqlat = cos(qlat * pi180)
+      sinqlon = sin(qlon * pi180)
+      cosqlon = cos(qlon * pi180)
+
+! Compute (x3,y3,z3) coordinates where the origin is the center of the earth,
+! the z axis is the north pole, the x axis is the equator and prime
+! meridian, and the y axis is the equator and 90 E.
+
+! For the pole point, these are:
+
+      x3p = erad * cosplat * cosplon
+      y3p = erad * cosplat * sinplon
+      z3p = erad * sinplat
+
+! For the given lat,lon point, these are:
+
+      z3q = erad * sinqlat
+      x3q = erad * cosqlat * cosqlon
+      y3q = erad * cosqlat * sinqlon
+
+! Transform q point from (x3,y3,z3) coordinates in the above system to
+! polar stereographic coordinates (x,y,z):
+
+      xq = - sinplon * (x3q-x3p) + cosplon * (y3q-y3p)
+      yq =   cosplat * (z3q-z3p) 
+     1 - sinplat * ( cosplon * (x3q-x3p) + sinplon * (y3q-y3p) )
+      zq =   sinplat * (z3q-z3p)  
+     1 + cosplat * ( cosplon * (x3q-x3p) + sinplon * (y3q-y3p) )
+
+! Parametric equation for line from antipodal point at (0,0,-2 erad) to
+! point q has the following parameter (t) value on the polar stereographic
+! plane:
+
+      t = erad2 / (erad2 + zq)
+
+! This gives the following x and y coordinates for the projection of point q
+! onto the polar stereographic plane:
+
+      x = xq * t
+      y = yq * t
+
+      return
+      end
+
+      subroutine AllocErrorCheck(ierr,s)
+	integer :: ierr
+	  character(LEN=*) :: s
+          if (ierr .NE. 0) then
+            print*,"Error in MemAlloc: allocation for ",s," failed"
+	    stop
+          end if 
+	end subroutine AllocErrorCheck
+
+
+      subroutine gdtost(a,ix,iy,stax,stay,staval)
+      implicit none
+
+! passed variables
+
+      integer :: ix, iy
+      real :: stax,stay,staval
+      real, dimension(ix,iy) :: a
+
+! internal variables
+
+      integer :: i,j
+      real :: wtx1,wtx2,wty1,wty2
+
+!     Subroutine to return stations back-interpolated values (staval)
+!     from uniform grid points using bi-linear interpolation.
+!     Gridded values of input array a dimensioned a(ix,iy), where
+!     ix=grid points in x, iy = grid points in y.  Station
+!     location given in terms of grid relative station x,y (stax,stay).
+
+      i = int(stax)
+      j = int(stay)
+      wtx2 = stax - float(i)
+      wty2 = stay - float(j)
+      wtx1 = 1. - wtx2
+      wty1 = 1. - wty2
+
+      staval = wtx1 * (wty1 * a(i  ,j  )
+     1          + wty2 * a(i  ,j+1))
+     2  + wtx2 * (wty1 * a(i+1,j  )
+     3          + wty2 * a(i+1,j+1))
+      return
+      end subroutine
+
+	end module VIS5D_DISPLAY_CLASS

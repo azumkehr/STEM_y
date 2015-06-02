@@ -1,0 +1,145 @@
+      ! Name of the executable model
+      module execname
+        character(len=*), parameter :: 
+     &         exec_name = "./icartt.run "
+      end module execname
+
+      program aq_driver
+      
+c--------------------------------------------------------------------------
+      include 'aqmax.param'
+      include 'aqms.param'
+c--------------------------------------------------------------------------
+      integer :: ix=ixm, iy=iym, iz=izm  ! Grid Dimensions
+      integer :: N_gas=iLm               ! No. of gas species
+c--------------------------------------------------------------------------
+c The control Variables
+      !The choice of ctrls are based upon the gradient magnitudes 4/20/04
+c--------------------------------------------------------------------------
+      real, dimension(:,:,:,:), pointer :: emi_fac,emi_grd
+c-------------------------------------------------------------------------------
+c  optimization variables and parameters
+c-------------------------------------------------------------------------------
+      double precision :: costfct
+
+C ----- Allocate Memory -------------
+       print*,"OPT: Allocate Memory"
+       allocate( emi_fac(ix,iy,2,1),STAT=ierr )
+       allocate( emi_grd(ix,iy,2,1),STAT=ierr )
+       emi_grd=0
+       costfct=0 
+        
+      open(124,file='q_fac.plt')
+      read(124,*) !'ZONE F=point, I=',ix,' J=',iy
+            do iit=1,1
+            do j=1,iy
+            do i=1,ix
+                read(124,*) itemp,jtemp,emi_fac(i,j,1,iit)
+            enddo
+            enddo
+            enddo
+      close(124)
+      open(124,file='emi_fac.plt')
+      read(124,*) !'ZONE F=point, I=',ix,' J=',iy
+            do iit=1,1
+            do j=1,iy
+            do i=1,ix
+                read(124,*) itemp,jtemp,emi_fac(i,j,2,iit)
+            enddo
+            enddo
+            enddo
+      close(124)
+
+	call simulation('fwd',ix,iy,iz,N_gas,emi_fac,emi_grd,costfct)
+	
+       end program aq_driver
+
+
+c--------------------------------------------------------------------------
+c  This subroutine calls STEM with:
+c           - the initial concentration field sg1
+c           - the final adjoint field Lambda
+c  Upon return:
+c           - sg1 holds the final concentration field
+c           - Lambda holds the adjoint vars at initial time
+c
+c  Note: if mode == 'ini' then the model only reads the initial
+c           values of sg1 and returns
+c
+c  mode   = 'fwd' : forward only run, to calculate cost function
+c           'fbw' : both forward and backward runs (recommended)
+c           'obs' : forward run to generate the observation file
+c           'ini' : for initialization only
+c
+c  Purpose : it is a clean interface to the simulation code
+c  Note:     it communicates with stem via 2 direct access files,
+c            one for the conc variables and one for the adjoint   
+c--------------------------------------------------------------------------
+        subroutine simulation(mode,ix,iy,iz,N_gas,
+     &                        emi_fac,emi_grd,costfct)
+        use execname
+
+C ----- Declare Variables -------------
+        character(len=3) :: mode
+	integer :: ix, iy, iz, N_gas
+	real :: emi_fac(ix,iy,2,1), emi_grd(ix,iy,2,1)
+
+C ----- Declare The file for initial concentrations -------------
+        character(len=32) :: fname_emi_fac, fname_emi_grd
+        integer :: unit_emi_fac = 78, unit_emi_grd = 79
+	integer :: unit_mode = 80,unit_cost=81
+        integer :: record_emi_fac = 1, record_emi_grd= 1
+        double precision :: costfct
+ 
+C --- Check if the value of mode is appropriate
+        if ( (mode(1:3).ne.'fwd').and.(mode(1:3).ne.'fbw')
+     &        .and.(mode(1:3).ne.'ini').and.(mode(1:3).ne.'obs') ) then
+             print*,'Error in simulation: mode = <',mode,'>'
+	     print*,'Accepted values are <fwd>, <fbw>, <ini> or <obs>'
+	end if     		 
+
+C ---- Open File for Mode -----
+        open( unit=unit_mode, file='TmpMode' )
+        write( unit_mode, fmt="(A3)" ) mode(1:3)
+        close( unit_mode )
+
+C ---- Direct Access Files -----
+        fname_emi_fac = 'TmpEmiFac'
+        fname_emi_grd = 'TmpEmiGrd'
+        
+C ---- Write Initial Conc. 
+	if( mode=='fwd' .or. mode=='fbw'.or.mode=='obs') then
+           open(unit_emi_fac,file=fname_emi_fac, access='direct',
+     &         recl=4*ix*iy*2*1)
+            write(unit_emi_fac) emi_fac
+           close( unit_emi_fac)
+        end if
+
+ 
+C ---- Call simulation by executing Adjoint stem in a new shell -------------
+        call system( exec_name )
+        print *, 'after exec_name call'
+
+       costfct=-1d0 ! initialize with a negative number
+       if ( mode == 'fbw'.or.mode == 'fwd') then
+        open(unit=unit_cost, file='costfct')
+        read(unit_cost,*) costfct 
+        close(unit_cost)
+        call system('rm costfct') 
+       endif 
+        
+C ---- Read The results -----
+
+        if ( mode == 'fbw' ) then
+           open(unit_emi_grd,file=fname_emi_grd, access='direct',
+     &	       recl=4*ix*iy*2*1)
+           read(unit_emi_grd) emi_grd 
+           close(unit_emi_grd)
+        end if
+ 
+C ---- Clean the Temporary Files ----
+        call system('rm TmpMode')
+        call system('rm caca')
+          
+        end subroutine simulation
+

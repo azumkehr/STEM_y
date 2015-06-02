@@ -1,0 +1,26 @@
+cc    aqrxn.cmm  ***
+c
+      double precision aa,bb,ee,coerg,coesg
+      common /aqrxng/aa(2,mxrxn),bb(2,mxrxn),ee(2,mxrxn),
+     1       coerg(30,mxrxn),coesg(30,mxrxn)
+c
+      real ff,fnn
+      common /raqrxng/ff(mxrxn),fnn(mxrxn)
+c     
+      integer nus, nur, nrxng, irs, irt, irc 
+      common /iaqrxng/nus(30,mxrxn), nur(30,mxrxn),
+     1       nrxng,irs(mxrxn),irr(mxrxn),irt(mxrxn),irc(mxrxn)
+c     
+      double precision aal,bbl,eel,coerl,coesl
+      common /aqrxnl/aal(mxrxn),bbl(mxrxn),eel(mxrxn),coerl(30,mxrxn),
+     1      coesl(30,mxrxn)
+c
+      integer nrxnl,lus,lur,lrs,lrr,lrt,lrc 
+      common /iaqrxnl/nrxnl,lus(30,mxrxn),lur(30,mxrxn),
+     2      lrs(mxrxn),lrr(mxrxn),lrt(mxrxn),lrc(mxrxn)
+c
+      real wls, absorb, qy     
+      common /aqphoto/  wls(30,500),absorb(30,500),qy(30,500)
+      integer ipht, npht
+      common /iaqphoto/ ipht(30,2),npht
+cc

@@ -1,0 +1,4 @@
+changes Tim made:
+
+created directory /home/ecampbell_lab/COS/fog/output/
+It didn't exist and caused STEM to crash because it was told to put output there.
