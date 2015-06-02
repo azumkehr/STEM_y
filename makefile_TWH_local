@@ -23,8 +23,10 @@ ROOTDIR=$(HOME)
 # The Vis5D home directory
 V5DHOME=/usr/local/vis5d-5.2
 
-APINCL=-I$(ROOTDIR)/local/include
-APILIB= -L$(ROOTDIR)/local/lib -lioapi -lnetcdf
+#APINCL=-I$(ROOTDIR)/local/include
+#APILIB= -L$(ROOTDIR)/local/lib -lioapi -lnetcdf
+APINCL=-I/home/ecampbell_lab/thilton/local/include
+APILIB= -L/home/ecampbell_lab/thilton/local/lib -lioapi -lnetcdf
 
 # ---- Include Directory ----
 DIRINCL=$(STEMSRCDIR)/Include
