@@ -1,6 +1,6 @@
       integer ixm,iym,izm,ilm,ilqm,ilptm,imother,jmother,ioff,joff
       integer neratio,i0,j0
-      parameter (ixm=124,iym=124,izm=22,imother=124,jmother=124, ! mother domain size
+      parameter (ixm=180,iym=282,izm=59,imother=180,jmother=282, ! mother domain size
      1 ioff=0,joff=0, neratio=1, i0=ioff,j0=joff)
       parameter (iLm=10,ilqm=10,ilptm=5)
 c     ilm: maximum number of the chemical species in gas phase

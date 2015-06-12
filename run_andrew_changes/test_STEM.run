@@ -68,11 +68,11 @@ setenv BDF /home/ecampbell_lab/COS/fog/bdv.nc
 setenv BDFV /home/ecampbell_lab/COS/fog/bdv.nc
 setenv TOPBND /home/ecampbell_lab/COS/fog/boundary.nc
 
-setenv JOUT /home/ecampbell_lab/COS/fog/output/JVS.temp.180x282-59levs-test1.nc
-setenv AEROOUT /home/ecampbell_lab/COS/fog/output/AEROS.temp.180x282-59levs-test1.nc
-setenv AQCHKP1 /home/ecampbell_lab/COS/fog/output/CHKP1.temp.180x282-59levs-test1.nc
-setenv AQRST /home/ecampbell_lab/COS/fog/output/SNOV.temp_r.180x282-59levs-test1.nc
-setenv AQOUT /home/ecampbell_lab/COS/fog/output/AQOUT-180x282-59levs-test1.nc
+setenv JOUT ./output/JVS.temp.180x282-59levs-test1.nc
+setenv AEROOUT ./output/AEROS.temp.180x282-59levs-test1.nc
+setenv AQCHKP1 ./output/CHKP1.temp.180x282-59levs-test1.nc
+setenv AQRST ./output/SNOV.temp_r.180x282-59levs-test1.nc
+setenv AQOUT ./output/AQOUT-180x282-59levs-test1.nc
 #rm -f  t_obs_pred.dat
 if (-e $JOUT) rm -f $JOUT
 if (-e $AEROOUT) rm -f $AEROOUT
@@ -81,7 +81,7 @@ if (-e $AQRST) rm -f $AQRST
 if (-e $AQOUT) rm -f $AQOUT
 
 #/home/ecampbell_lab/COS/STEM_wrf_y/STEM_src_Tim -machinefile nodes -np 32 ./saprcnov-wrf_y_main.exe  >& test_STEM_test1.log
-mpirun -np 32 ./saprcnov-wrf_y_fun.exe
+mpirun -np 32 ./test_y_stem_fun.exe
 
 echo ZONE >> multi_test1.dat
 cat t_obs_pred.dat >> mult_test1.dat
